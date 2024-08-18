@@ -1,0 +1,6 @@
+build/
+.vscode
+*.ll
+*.out
+*.o
+bin/

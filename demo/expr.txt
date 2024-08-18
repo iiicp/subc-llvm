@@ -1,0 +1,50 @@
+{
+int aa, b = 4;
+aa=1 ;
+aa = b = 0-2;
+if (b != 0) {
+    if (3 <= 0) {
+        b = 9;
+        aa = 19;
+    }
+    else {
+        aa = 30;
+    }
+}
+else {
+    b = 19;
+}
+
+// dadd 
+
+    
+for (int i = 0; i < 100; i = i + 1) {
+    /*   
+    dddd 
+            dddd 
+        */
+    aa = aa + i;
+    if (i >= 55) {
+        break;
+    }
+  for (int j = 1; j < 10; j = j + 2) {
+    if (i == 10) {
+        continue;
+    }
+    
+    b = b * j;
+  }
+}
+
+if (aa && b || b && aa || b) {
+    aa = aa + 8;
+}
+
+aa = aa << 2;
+b = b >> 1;
+aa = aa & b;
+aa = aa | b;
+aa = aa ^ b;
+aa = aa % 10;
+aa+b*(4+5);
+}
