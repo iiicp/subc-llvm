@@ -3,7 +3,7 @@
 struct {
     int a, b; 
     struct {int d; int a;} c;
-} a = {1,2, {10}}; 
+} a = {1,2,{4,5}}; 
 
 int sum(int n) {
     int ret = 0;

@@ -5,10 +5,14 @@ std::shared_ptr<Program> Parser::ParseProgram() {
     auto program = std::make_shared<Program>();
     program->fileName = lexer.GetFileName();
     while (tok.tokenType != TokenType::eof) {
+        std::shared_ptr<AstNode> node;
         if (IsFuncDecl()) {
-            program->externalDecls.push_back(ParseFuncDecl());
+            node = ParseFuncDecl();
         }else {
-            program->externalDecls.push_back(ParseDeclStmt(true));
+            node = ParseDeclStmt(true);
+        }
+        if (node) {
+            program->externalDecls.push_back(node);
         }
     }
     Expect(TokenType::eof);
@@ -95,6 +99,9 @@ std::shared_ptr<CType> Parser::ParseDeclSpec() {
         return CType::IntType;
     }else if (tok.tokenType == TokenType::kw_struct || tok.tokenType == TokenType::kw_union) {
         return ParseStructOrUnionSpec();
+    }else if (tok.tokenType == TokenType::kw_void) {
+        Consume(TokenType::kw_void);
+        return CType::VoidType;
     }
     GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_type);
     return nullptr;
@@ -112,14 +119,31 @@ std::shared_ptr<CType> Parser::ParseStructOrUnionSpec() {
     Advance();
 
     bool anony = false;
-    Token tag;
-    if (tok.tokenType == TokenType::l_brace) {
+    if (tok.tokenType != TokenType::identifier) {
         anony = true;
-    }else {
-        Expect(TokenType::identifier);
+    }
+
+    Token tag = tok;
+    if (tok.tokenType == TokenType::identifier) {
         tag = tok;
         Consume(TokenType::identifier);
     }
+
+    std::shared_ptr<CType> recordTy = nullptr;
+    if (!anony) {
+        recordTy = sema.SemaTagAccess(tag);
+    }
+
+    if (!recordTy) {
+        llvm::StringRef name;
+        if (anony) {
+            name = CType::GenAnonyRecordName(tagKind);
+        }else {
+            name = llvm::StringRef(tag.ptr, tag.len);
+        }
+        recordTy = std::make_shared<CRecordType>(name, std::vector<Member>(), tagKind);
+    }
+
     /*
         struct A{int a,b; int *p;}
         struct A;
@@ -140,13 +164,13 @@ std::shared_ptr<CType> Parser::ParseStructOrUnionSpec() {
         }
         sema.ExitScope();
         Consume(TokenType::r_brace);
-        if (anony) {
-            return sema.SemaAnonyTagDecl(members, tagKind);
-        }else {
-            return sema.SemaTagDecl(tag, members, tagKind);
-        }
+
+        CRecordType *ty = llvm::dyn_cast<CRecordType>(recordTy.get());
+        ty->SetMembers(members);
+
+        return sema.SemaTagDecl(tag, recordTy);
     }else {
-       return sema.SemaTagAccess(tag);  
+       return recordTy;  
     }
 }
 /**
@@ -161,9 +185,12 @@ std::shared_ptr<CType> Parser::DirectDeclaratorArraySuffix(std::shared_ptr<CType
         return baseType;
     }
     Consume(TokenType::l_bracket);
-    Expect(TokenType::number);
-    int count = tok.value;
-    Consume(TokenType::number);
+    int count = -1;
+    if (tok.tokenType != TokenType::r_bracket) {
+        Expect(TokenType::number);
+        count = tok.value;
+        Consume(TokenType::number);
+    }
     Consume(TokenType::r_bracket);
     return std::make_shared<CArrayType>(DirectDeclaratorArraySuffix(baseType, isGlobal), count);
 }
@@ -182,10 +209,15 @@ std::shared_ptr<CType> Parser::DirectDeclaratorFuncSuffix(Token iden, std::share
         auto node = Declarator(ty, isGlobal);
 
         Param p;
-        p.type = node->ty;
+        if (node->ty->GetKind() == CType::TY_Array) {
+            p.type = std::make_shared<CPointType>(node->ty);
+        }else {
+            p.type = node->ty;
+        }
         p.name = llvm::StringRef(node->tok.ptr, node->tok.len);
 
         params.push_back(p);
+        ++i;
     }
 
     Consume(TokenType::r_parent);
@@ -257,8 +289,10 @@ bool Parser::ParseInitializer(std::vector<std::shared_ptr<VariableDecl::InitValu
         if (declType->GetKind() == CType::TY_Array) {
             CArrayType *arrType = llvm::dyn_cast<CArrayType>(declType.get());
             int size = arrType->GetElementCount();
+            bool isFlex = size < 0 ? true : false;
             /// int a[10] = {1,2,3};
-            for (int i = 0; i < size; ++i) {
+            int i = 0;
+            for (; i < size || isFlex; ++i) {
                 if (i > 0 && (tok.tokenType == TokenType::comma)) {
                     Consume(TokenType::comma);
                 }
@@ -268,6 +302,9 @@ bool Parser::ParseInitializer(std::vector<std::shared_ptr<VariableDecl::InitValu
                 if (end) {
                     break;
                 }
+            }
+            if (isFlex) {
+                arrType->SetElementCount(i);
             }
         }else if (declType->GetKind() == CType::TY_Record) {
             CRecordType *recordType = llvm::dyn_cast<CRecordType>(declType.get());
@@ -652,6 +689,7 @@ std::shared_ptr<AstNode> Parser::ParsePostFixExpr() {
                     Consume(TokenType::comma);
                 }
                 args.push_back(ParseAssignExpr());
+                ++i;
             }
 
             Consume(TokenType::r_parent);
@@ -857,6 +895,8 @@ bool Parser::IsTypeName(TokenType tokenType) {
         return true;
     }else if (tokenType == TokenType::kw_struct || tokenType == TokenType::kw_union) {
         return true;
+    }else if (tokenType == TokenType::kw_void) {
+        return true;
     }
     return false;
 }
@@ -868,12 +908,14 @@ bool Parser::IsFuncDecl() {
     lexer.SaveState();
 
     auto baseType = ParseDeclSpec();
-    auto node = Declarator(baseType, true);
-
-    if (node->ty->GetKind() == CType::TY_Func) {
-        isFunc = true;
+    if (tok.tokenType == TokenType::semi) {
+        isFunc = false;
+    }else {
+        auto node = Declarator(baseType, true);
+        if (node->ty->GetKind() == CType::TY_Func) {
+            isFunc = true;
+        }
     }
-
     lexer.RestoreState();
     tok = begin;
     sema.SetMode(Sema::Mode::Normal);

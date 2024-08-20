@@ -63,6 +63,7 @@ enum class TokenType : uint8_t{
     kw_union,       // union
     dot,            // .
     arrow,          // ->
+    kw_void,        // void
     kw_return,      // return
     eof             // end
 };

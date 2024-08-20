@@ -107,6 +107,7 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
         llvm::BasicBlock *mergeBB = llvm::BasicBlock::Create(context, "mergeBB");
 
         llvm::Value *left = binaryExpr->left->Accept(this);
+        CastValue(left, irBuilder.getInt32Ty());
         llvm::Value *val = irBuilder.CreateICmpNE(left, irBuilder.getInt32(0));
         irBuilder.CreateCondBr(val, nextBB, falseBB);
 
@@ -143,6 +144,7 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
         llvm::BasicBlock *mergeBB = llvm::BasicBlock::Create(context, "mergeBB");
 
         llvm::Value *left = binaryExpr->left->Accept(this);
+        CastValue(left, irBuilder.getInt32Ty());
         llvm::Value *val = irBuilder.CreateICmpNE(left, irBuilder.getInt32(0));
         irBuilder.CreateCondBr(val, trueBB, nextBB);
 
@@ -291,25 +293,28 @@ llvm::Value * CodeGen::VisitDeclStmt(DeclStmt *p) {
 /// 划分基本块 
 llvm::Value * CodeGen::VisitIfStmt(IfStmt *p) {
     llvm::BasicBlock *condBB = llvm::BasicBlock::Create(context, "cond", curFunc);
-    llvm::BasicBlock *thenBB = llvm::BasicBlock::Create(context, "then", curFunc);
+    llvm::BasicBlock *thenBB = llvm::BasicBlock::Create(context, "then");
     llvm::BasicBlock *elseBB = nullptr;
     if (p->elseNode)
-        elseBB = llvm::BasicBlock::Create(context, "else", curFunc);
-    llvm::BasicBlock *lastBB = llvm::BasicBlock::Create(context, "last", curFunc);
+        elseBB = llvm::BasicBlock::Create(context, "else");
+    llvm::BasicBlock *lastBB = llvm::BasicBlock::Create(context, "last");
 
     irBuilder.CreateBr(condBB);
     irBuilder.SetInsertPoint(condBB);
     llvm::Value *val = p->condNode->Accept(this);
+    CastValue(val, irBuilder.getInt32Ty());
     /// 整型比较指令
     llvm::Value *condVal = irBuilder.CreateICmpNE(val, irBuilder.getInt32(0));
     if (p->elseNode) {
         irBuilder.CreateCondBr(condVal, thenBB, elseBB);
 
         /// handle then bb
+        thenBB->insertInto(curFunc);
         irBuilder.SetInsertPoint(thenBB);
         p->thenNode->Accept(this);
         irBuilder.CreateBr(lastBB);
 
+        elseBB->insertInto(curFunc);
         irBuilder.SetInsertPoint(elseBB);
         p->elseNode->Accept(this);
         irBuilder.CreateBr(lastBB);
@@ -317,11 +322,13 @@ llvm::Value * CodeGen::VisitIfStmt(IfStmt *p) {
         irBuilder.CreateCondBr(condVal, thenBB, lastBB);
 
         /// handle then bb
+        thenBB->insertInto(curFunc);
         irBuilder.SetInsertPoint(thenBB);
         p->thenNode->Accept(this);
         irBuilder.CreateBr(lastBB);
     }
 
+    lastBB->insertInto(curFunc);
     irBuilder.SetInsertPoint(lastBB);
 
     return nullptr;
@@ -348,6 +355,7 @@ llvm::Value * CodeGen::VisitForStmt(ForStmt *p) {
     irBuilder.SetInsertPoint(condBB);
     if (p->condNode) {
         llvm::Value *val = p->condNode->Accept(this);
+        CastValue(val, irBuilder.getInt32Ty());
         llvm::Value *condVal = irBuilder.CreateICmpNE(val, irBuilder.getInt32(0));
         irBuilder.CreateCondBr(condVal, bodyBB, lastBB);
     }else {
@@ -435,10 +443,18 @@ llvm::Value * CodeGen::VisitVariableDecl(VariableDecl *decl) {
             if (ty->isIntegerTy()) {
                 std::shared_ptr<VariableDecl::InitValue> init = GetInitValueByOffset(offset);
                 if (init) {
-                    return llvm::dyn_cast<llvm::Constant>(init->value->Accept(this));
+                    auto *c = init->value->Accept(this);
+                    CastValue(c, ty);
+                    return llvm::dyn_cast<llvm::Constant>(c);
                 }
                 return irBuilder.getInt32(0);
             }else if (ty->isPointerTy()) {
+                std::shared_ptr<VariableDecl::InitValue> init = GetInitValueByOffset(offset);
+                if (init) {
+                    auto *c = init->value->Accept(this);
+                    CastValue(c, ty);
+                    return llvm::dyn_cast<llvm::Constant>(c);
+                }
                 return llvm::ConstantPointerNull::get(llvm::dyn_cast<llvm::PointerType>(ty));
             }else if (ty->isStructTy()) {
                 llvm::StructType *structTy = llvm::dyn_cast<llvm::StructType>(ty);
@@ -480,6 +496,7 @@ llvm::Value * CodeGen::VisitVariableDecl(VariableDecl *decl) {
         if (decl->initValues.size() > 0) {
             if (decl->initValues.size() == 1) {
                 llvm::Value *initValue = decl->initValues[0]->value->Accept(this);
+                CastValue(initValue, decl->initValues[0]->declType->Accept(this));
                 irBuilder.CreateStore(initValue, alloc);
             }else {
                 if (llvm::ArrayType *arrType = llvm::dyn_cast<llvm::ArrayType>(ty)) {
@@ -490,6 +507,7 @@ llvm::Value * CodeGen::VisitVariableDecl(VariableDecl *decl) {
                         }
                         llvm::Value *addr = irBuilder.CreateInBoundsGEP(ty, alloc, vec);
                         llvm::Value *v = initValue->value->Accept(this);
+                        CastValue(v, initValue->declType->Accept(this));
                         irBuilder.CreateStore(v, addr);
                     }
                 }else if (llvm::StructType *structType = llvm::dyn_cast<llvm::StructType>(ty)) {
@@ -503,6 +521,7 @@ llvm::Value * CodeGen::VisitVariableDecl(VariableDecl *decl) {
                             }
                             llvm::Value *addr = irBuilder.CreateInBoundsGEP(ty, alloc, vec);
                             llvm::Value *v = initValue->value->Accept(this);
+                            CastValue(v, initValue->declType->Accept(this));
                             irBuilder.CreateStore(v, addr);
                         }
                     }else {
@@ -514,6 +533,7 @@ llvm::Value * CodeGen::VisitVariableDecl(VariableDecl *decl) {
                         }
                         llvm::Value *addr = irBuilder.CreateInBoundsGEP(ty, alloc, vec);
                         llvm::Value *v = initValue->value->Accept(this);
+                        CastValue(v, initValue->declType->Accept(this));
                         irBuilder.CreateStore(v, addr);
                     }
                 }
@@ -528,34 +548,36 @@ llvm::Value * CodeGen::VisitVariableDecl(VariableDecl *decl) {
 
 llvm::Value * CodeGen::VisitFuncDecl(FuncDecl *decl) {
     ClearVarScope();
-
     CFuncType *cFuncTy = llvm::dyn_cast<CFuncType>(decl->ty.get());
-    /// main 
-    llvm::FunctionType * funcTy = llvm::dyn_cast<llvm::FunctionType>(decl->ty->Accept(this));
-    auto mFunc = Function::Create(funcTy, GlobalValue::ExternalLinkage, cFuncTy->GetName(), module.get());
-    AddGlobalVarToMap(mFunc, funcTy, cFuncTy->GetName());
-
     const auto &params = cFuncTy->GetParams();
-    int i = 0;
-    for (auto &arg : mFunc->args()) {
-        arg.setName(params[i++].name);
-    }
+    llvm::Function *func = module->getFunction(cFuncTy->GetName());
+    
+    if (!func) {
+        /// main 
+        llvm::FunctionType * funcTy = llvm::dyn_cast<llvm::FunctionType>(decl->ty->Accept(this));
+        func = Function::Create(funcTy, GlobalValue::ExternalLinkage, cFuncTy->GetName(), module.get());
+        AddGlobalVarToMap(func, funcTy, cFuncTy->GetName());
 
+        int i = 0;
+        for (auto &arg : func->args()) {
+            arg.setName(params[i++].name);
+        }
+    }
     if (!decl->blockStmt) {
         return nullptr;
     }
 
-    BasicBlock *entryBB = BasicBlock::Create(context, "entry", mFunc);
+    BasicBlock *entryBB = BasicBlock::Create(context, "entry", func);
     irBuilder.SetInsertPoint(entryBB);
 
     /// 记录当前函数
-    curFunc = mFunc;
+    curFunc = func;
 
     PushScope();
 
     /// 存放变量的分配
-    i = 0;
-    for (auto &arg : mFunc->args()) {
+    int i = 0;
+    for (auto &arg : func->args()) {
         auto *alloc = irBuilder.CreateAlloca(arg.getType(), nullptr, params[i].name);
         alloc->setAlignment(llvm::Align(params[i].type->GetAlign()));
         irBuilder.CreateStore(&arg, alloc);
@@ -568,8 +590,18 @@ llvm::Value * CodeGen::VisitFuncDecl(FuncDecl *decl) {
 
     decl->blockStmt->Accept(this);
 
+    auto &block = curFunc->back();
+    if (block.empty() || !block.back().isTerminator()) {
+        if (cFuncTy->GetRetType()->GetKind() == CType::TY_Void) {
+            irBuilder.CreateRetVoid();
+        }else {
+            irBuilder.CreateRet(irBuilder.getInt32(0));
+        }
+    }
+
     PopScope();
-    verifyFunction(*mFunc);
+
+    // verifyFunction(*mFunc);
 
     if (verifyModule(*module, &llvm::outs())) {
         module->print(llvm::outs(), nullptr);
@@ -638,20 +670,14 @@ llvm::Value * CodeGen::VisitUnaryExpr(UnaryExpr *expr) {
 }
 
 llvm::Value * CodeGen::VisitSizeOfExpr(SizeOfExpr *expr) {
-    llvm::Type *ty = nullptr;
+
+    std::shared_ptr<CType> ty = nullptr;
     if (expr->type) {
-        ty = expr->type->Accept(this);
+        ty = expr->type;
     }else {
-        ty = expr->node->ty->Accept(this);
+        ty = expr->node->ty;
     }
-    if (ty->isPointerTy()) {
-        return irBuilder.getInt32(8);
-    }else if (ty->isIntegerTy()) {
-        return irBuilder.getInt32(4);
-    }else {
-        assert(0);
-        return nullptr;
-    }
+    return irBuilder.getInt32(ty->GetSize());
 }
 
 llvm::Value * CodeGen::VisitPostIncExpr(PostIncExpr *expr) {
@@ -698,8 +724,15 @@ llvm::Value * CodeGen::VisitPostSubscript(PostSubscript *expr) {
     llvm::Type *ty = expr->ty->Accept(this);
     llvm::Value *left = expr->left->Accept(this);
     llvm::Value *offset = expr->node->Accept(this);
-
-    llvm::Value *addr = irBuilder.CreateInBoundsGEP(ty, llvm::dyn_cast<LoadInst>(left)->getPointerOperand(), {offset});
+    
+    llvm::Value *addr;
+    if (left->getType()->isPointerTy()) {
+        addr = irBuilder.CreateInBoundsGEP(ty, left, {offset});
+    }else if (left->getType()->isArrayTy()){
+        addr = irBuilder.CreateInBoundsGEP(ty, llvm::dyn_cast<LoadInst>(left)->getPointerOperand(), {offset});
+    }else {
+        assert(0);
+    }
     return irBuilder.CreateLoad(ty, addr);
 }
 
@@ -753,16 +786,24 @@ llvm::Value * CodeGen::VisitPostMemberArrowExpr(PostMemberArrowExpr *expr) {
 llvm::Value * CodeGen::VisitPostFuncCall(PostFuncCall *expr) {
     llvm::Value *funcArr = expr->left->Accept(this);
     llvm::FunctionType *funcTy = llvm::dyn_cast<llvm::FunctionType>(expr->left->ty->Accept(this));
+    CFuncType *cFuncTy = llvm::dyn_cast<CFuncType>(expr->left->ty.get());
+    
+    const auto &param = cFuncTy->GetParams();
 
+    int i = 0;
     llvm::SmallVector<llvm::Value *> args;
     for (const auto &arg : expr->args) {
-        args.push_back(arg->Accept(this));
+        llvm::Value *val = arg->Accept(this);
+        CastValue(val, param[i].type->Accept(this));
+        args.push_back(val);
+        ++i;
     }
     return irBuilder.CreateCall(funcTy, funcArr, args);
 }
 
 llvm::Value * CodeGen::VisitThreeExpr(ThreeExpr *expr) {
     llvm::Value *val = expr->cond->Accept(this);
+    CastValue(val, irBuilder.getInt32Ty());
     llvm::Value *cond = irBuilder.CreateICmpNE(val, irBuilder.getInt32(0));
 
     llvm::BasicBlock *thenBB = llvm::BasicBlock::Create(context, "then", curFunc);
@@ -806,6 +847,8 @@ llvm::Value * CodeGen::VisitVariableAccessExpr(VariableAccessExpr *expr) {
 llvm::Type * CodeGen::VisitPrimaryType(CPrimaryType *ty) {
     if (ty->GetKind() == CType::TY_Int) {
         return irBuilder.getInt32Ty();
+    }else if (ty->GetKind() == CType::TY_Void) {
+        return irBuilder.getVoidTy();
     }
     assert(0);
     return nullptr;
@@ -886,4 +929,23 @@ void CodeGen::PopScope() {
 
 void CodeGen::ClearVarScope() {
     localVarMap.clear();
+}
+
+void CodeGen::CastValue(llvm::Value *&val, llvm::Type *destTy) {
+    if (val->getType() != destTy) {
+        if (val->getType()->isIntegerTy()) {
+            if (destTy->isPointerTy()) {
+                val = irBuilder.CreateIntToPtr(val, destTy);
+            }
+        }else if (val->getType()->isPointerTy()) {
+            if (destTy->isIntegerTy()) {
+                val = irBuilder.CreatePtrToInt(val, destTy);
+            }
+        }else if (val->getType()->isArrayTy()) {
+            if (destTy->isPointerTy()) {
+                auto *load = llvm::dyn_cast<llvm::LoadInst>(val);
+                val = load->getPointerOperand();
+            }
+        }
+    }
 }

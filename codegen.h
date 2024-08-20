@@ -47,6 +47,8 @@ private:
     llvm::Type * VisitRecordType(CRecordType *ty) override;
     llvm::Type * VisitFuncType(CFuncType *ty) override;
 private:
+    void CastValue(llvm::Value *&val, llvm::Type *destTy);
+private:
     void AddLocalVarToMap(llvm::Value *addr, llvm::Type *ty, llvm::StringRef name);
     void AddGlobalVarToMap(llvm::Value *addr, llvm::Type *ty, llvm::StringRef name);
     std::pair<llvm::Value *, llvm::Type *> GetVarByName(llvm::StringRef name);

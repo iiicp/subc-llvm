@@ -32,6 +32,7 @@ public:
 
     std::shared_ptr<CType> SemaTagAccess(Token tok);
     std::shared_ptr<CType> SemaTagDecl(Token tok, const std::vector<Member> &members, TagKind tagKind);
+    std::shared_ptr<CType> SemaTagDecl(Token tok, std::shared_ptr<CType> type);
     std::shared_ptr<CType> SemaAnonyTagDecl(const std::vector<Member> &members, TagKind tagKind);
 
     std::shared_ptr<AstNode> SemaFuncDecl(Token tok, std::shared_ptr<CType> type, std::shared_ptr<AstNode> blockStmt);

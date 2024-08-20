@@ -6,7 +6,7 @@ std::shared_ptr<AstNode> Sema::SemaVariableDeclNode(Token tok, std::shared_ptr<C
     // 1. 检测是否出现重定义
     llvm::StringRef text(tok.ptr, tok.len);
     std::shared_ptr<Symbol> symbol = scope.FindObjSymbolInCurEnv(text);
-    if (symbol) {
+    if (symbol && (mode == Mode::Normal)) {
         diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_redefined, text);
     }
     if (mode == Mode::Normal) {
@@ -169,7 +169,7 @@ std::shared_ptr<AstNode> Sema::SemaPostSubscriptNode(std::shared_ptr<AstNode> le
 }
 
 std::shared_ptr<AstNode> Sema::SemaPostMemberDotNode(std::shared_ptr<AstNode> left, Token iden, Token dotTok) {
-    if (left->ty->GetKind() != CType::TY_Record) {
+    if (left->ty->GetKind() != CType::TY_Record && (mode == Mode::Normal)) {
         diagEngine.Report(llvm::SMLoc::getFromPointer(dotTok.ptr), diag::err_expected_ype, "struct or union type");
     }
 
@@ -241,9 +241,9 @@ std::shared_ptr<AstNode> Sema::SemaNumberExprNode(Token tok, std::shared_ptr<CTy
 }
 std::shared_ptr<VariableDecl::InitValue> Sema::SemaDeclInitValue(std::shared_ptr<CType> declType, std::shared_ptr<AstNode> value, std::vector<int> &offsetList, Token tok)
  {
-    if (declType->GetKind() != value->ty->GetKind() && (mode == Mode::Normal)) {
-        diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_miss, "same type");
-    }
+    // if (declType->GetKind() != value->ty->GetKind() && (mode == Mode::Normal)) {
+    //     diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_miss, "same type");
+    // }
     auto initValue = std::make_shared<VariableDecl::InitValue>();
     initValue->declType = declType;
     initValue->value = value;
@@ -262,10 +262,10 @@ std::shared_ptr<AstNode> Sema::SemaIfStmtNode(std::shared_ptr<AstNode> condNode,
 std::shared_ptr<CType> Sema::SemaTagAccess(Token tok) {
     llvm::StringRef text(tok.ptr, tok.len);
     std::shared_ptr<Symbol> symbol = scope.FindTagSymbol(text);
-    if (symbol == nullptr && (mode == Mode::Normal)) {
-        diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_undefined, text);
+    if (symbol) {
+        return symbol->GetTy();;
     }
-    return symbol->GetTy();
+    return nullptr;
 }
 
 std::shared_ptr<CType> Sema::SemaTagDecl(Token tok, const std::vector<Member> &members, TagKind tagKind) {
@@ -283,6 +283,19 @@ std::shared_ptr<CType> Sema::SemaTagDecl(Token tok, const std::vector<Member> &m
     return recordTy;
 }
 
+std::shared_ptr<CType> Sema::SemaTagDecl(Token tok, std::shared_ptr<CType> type) {
+    llvm::StringRef text(tok.ptr, tok.len);
+    std::shared_ptr<Symbol> symbol = scope.FindTagSymbolInCurEnv(text);
+    if (symbol) {
+        diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_redefined, text);
+    }
+    if (mode == Mode::Normal) {
+        /// 2. 添加到符号表
+        scope.AddTagSymbol(type, text);
+    }
+    return type;
+}
+
 std::shared_ptr<CType> Sema::SemaAnonyTagDecl(const std::vector<Member> &members, TagKind tagKind) {
     llvm::StringRef text = CType::GenAnonyRecordName(tagKind);
     auto recordTy = std::make_shared<CRecordType>(text, members, tagKind);
@@ -294,14 +307,24 @@ std::shared_ptr<CType> Sema::SemaAnonyTagDecl(const std::vector<Member> &members
 }
 
 std::shared_ptr<AstNode> Sema::SemaFuncDecl(Token tok, std::shared_ptr<CType> type, std::shared_ptr<AstNode> blockStmt) {
+    CFuncType *funTy = llvm::dyn_cast<CFuncType>(type.get());
+    funTy->hasBody = (blockStmt) ? true : false;
+
      // 1. 检测是否出现重定义
     llvm::StringRef text(tok.ptr, tok.len);
     std::shared_ptr<Symbol> symbol = scope.FindObjSymbolInCurEnv(text);
-    if (symbol && blockStmt && (mode == Mode::Normal)) {
-        diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_redefined, text);
+    if (symbol) {
+        auto symTy = symbol->GetTy();
+        if (symTy->GetKind() != CType::TY_Func && (mode == Mode::Normal)) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_redefined, text);
+        }
+        CFuncType *symbolFunTy = llvm::dyn_cast<CFuncType>(symTy.get());
+        if (symbolFunTy->hasBody && funTy->hasBody && (mode == Mode::Normal)) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_redefined, text);
+        }
     }
 
-    if (symbol == nullptr && (mode == Mode::Normal)) {
+    if ((symbol == nullptr || funTy->hasBody)  && (mode == Mode::Normal)) {
         /// 2. 添加到符号表
         scope.AddObjSymbol(type, text);
     }
@@ -315,12 +338,12 @@ std::shared_ptr<AstNode> Sema::SemaFuncDecl(Token tok, std::shared_ptr<CType> ty
 
 std::shared_ptr<AstNode> Sema::SemaFuncCall(std::shared_ptr<AstNode> left, const std::vector<std::shared_ptr<AstNode>> &args) {
     Token iden = left->tok;
-    if (left->ty->GetKind() != CType::TY_Func) {
+    if (left->ty->GetKind() != CType::TY_Func && (mode == Mode::Normal)) {
         diagEngine.Report(llvm::SMLoc::getFromPointer(iden.ptr), diag::err_expected, "functype");
     }
 
     CFuncType *funcType = llvm::dyn_cast<CFuncType>(left->ty.get());
-    if (funcType->GetParams().size() != args.size()) {
+    if (funcType->GetParams().size() != args.size() && (mode == Mode::Normal)) {
         diagEngine.Report(llvm::SMLoc::getFromPointer(iden.ptr), diag::err_miss, "arg count not match");
     }
 

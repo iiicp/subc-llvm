@@ -26,6 +26,7 @@ enum class TagKind {
 class CType {
 public:
     enum Kind {
+        TY_Void,
         TY_Int,
         TY_Point,
         TY_Array,
@@ -49,6 +50,7 @@ public:
     virtual llvm::Type * Accept(TypeVisitor *v) {return nullptr;}
 
     static std::shared_ptr<CType> IntType;
+    static std::shared_ptr<CType> VoidType;
 
     static llvm::StringRef GenAnonyRecordName(TagKind tagKind);
 };
@@ -101,6 +103,11 @@ public:
         return elementCount;
     }
 
+    void SetElementCount(int count) {
+        elementCount = count;
+        this->size = elementCount * elementType->GetSize();
+    }
+
     llvm::Type * Accept(TypeVisitor *v) override {
         return v->VisitArrayType(this);
     }
@@ -135,6 +142,8 @@ public:
         return members;
     }
 
+    void SetMembers(const std::vector<Member>& members);
+
     const TagKind GetTagKind() {
         return tagKind;
     }
@@ -166,6 +175,7 @@ private:
     std::vector<Param> params;
     llvm::StringRef name;
 public:
+    bool hasBody{false};
     CFuncType(std::shared_ptr<CType> retType, const std::vector<Param>& params, llvm::StringRef name);
     
     const llvm::StringRef GetName() {

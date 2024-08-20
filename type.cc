@@ -1,6 +1,7 @@
 #include "type.h"
 
 std::shared_ptr<CType> CType::IntType = std::make_shared<CPrimaryType>(Kind::TY_Int, 4, 4);
+std::shared_ptr<CType> CType::VoidType = std::make_shared<CPrimaryType>(Kind::TY_Void, 0, 0);
 
 llvm::StringRef CType::GenAnonyRecordName(TagKind tagKind) {
     static long long idx = 0;
@@ -26,6 +27,15 @@ static int roundup(int x, int align) {
 
 CRecordType::CRecordType(llvm::StringRef name, const std::vector<Member> &members, TagKind tagKind) 
     : CType(CType::TY_Record, 0, 0), name(name), members(members), tagKind(tagKind){
+    if (tagKind == TagKind::kStruct) {
+        UpdateStructOffset();
+    }else {
+        UpdateUnionOffset();
+    }
+}
+
+void CRecordType::SetMembers(const std::vector<Member>& members) {
+    this->members = members;
     if (tagKind == TagKind::kStruct) {
         UpdateStructOffset();
     }else {

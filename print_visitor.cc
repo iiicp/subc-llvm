@@ -368,6 +368,8 @@ llvm::Value * PrintVisitor::VisitThreeExpr(ThreeExpr *expr) {
 llvm::Type * PrintVisitor::VisitPrimaryType(CPrimaryType *ty) {
     if (ty->GetKind() == CType::TY_Int) {
         *out << "int ";
+    }else if (ty->GetKind() == CType::TY_Void) {
+        *out << "void ";
     }
 
     return nullptr;
