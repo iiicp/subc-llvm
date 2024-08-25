@@ -9,7 +9,9 @@ prog       ::= external-decl+
 external-decl ::= func-def | decl-stmt
 func-def   ::= decl-spec declarator block-stmt
 block-stmt ::= stmt*
-stmt       ::= decl-stmt | expr-stmt | null-stmt | if-stmt | block-stmt | for-stmt | break-stmt | continue-stmt
+stmt       ::= decl-stmt | expr-stmt | null-stmt | if-stmt | block-stmt | for-stmt | 
+				break-stmt | continue-stmt | while-stmt | do-while-stm | switch-stmt |
+				case-stmt | default-stmt
 decl-stmt  ::= decl-spec init-declarator-list? ";"
 init-declarator-list ::= declarator (= initializer)? ("," declarator (= initializer)?)*
 decl-spec  ::= "int" | struct-or-union-specifier
@@ -27,7 +29,12 @@ initializer ::= assign | "{" initializer ("," initializer)*  "}"
 null-stmt     ::= ";"
 if-stmt       ::= "if" "(" expr ")" stmt ( "else" stmt )?
 for-stmt      ::= "for" "(" expr? ";" expr? ";" expr? ")" stmt
-							    "for" "(" decl-stmt expr? ";" expr? ")" stmt
+							    "for" "(" decl-stmt expr? ";" expr? ")" stmt 
+while-stmt 	  ::= "while" "(" expr ")" stmt								 
+do-while-stmt ::= "do" stmt	"while" "(" expr ")" ";"
+switch-stmt   ::= "switch" "(" expr ")" stmt
+case-stmt	  ::= "case" expr ":" stmt 
+default-stmt  ::= "default" ":" stmt
 block-stmt    ::= "{" stmt* "}"
 break-stmt    ::= "break" ";"
 continue-stmt ::= "continue" ";"
@@ -86,16 +93,59 @@ int main() {
 
 ### demo2 
 ``` 
- int main(){
-    int a=0;
-    int count=0;
-    for(; a<=0; ){
-        a=a-1;
-        count=count+1;
-        if(a<-20)
-            break;
+// How to run:
+//
+//   $ ./9cc examples/nqueen.c > tmp-nqueen.s
+//   $ gcc -static -o tmp-nqueen tmp-nqueen.s
+//   $ ./tmp-nqueen 
+
+int printf(const char *fmg, ...);
+
+void print_board(int board[][10]) {
+  for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++)
+      if (board[i][j])
+	printf("Q ");
+      else
+	printf(". ");
+    printf("\n");
+  }
+  printf("\n\n");
+}
+
+int conflict(int board[][10], int row, int col) {
+  for (int i = 0; i < row; i++) {
+    if (board[i][col])
+      return 1;
+    int j = row - i;
+    if (0 < col - j + 1 && board[i][col - j])
+      return 1;
+    if (col + j < 10 && board[i][col + j])
+      return 1;
+  }
+  return 0;
+}
+
+void solve(int board[][10], int row) {
+  if (row > 9) {
+    print_board(board);
+  }
+  for (int i = 0; i < 10; i++) {
+    if (conflict(board, row, i)) {
+    } else {
+      board[row][i] = 1;
+      solve(board, row + 1);
+      board[row][i] = 0;
     }
-    return count;
+  }
+}
+
+int main() {
+  int board[100];
+  for (int i = 0; i < 100; i++)
+    board[i] = 0;
+  solve(board, 0);
+  return 0;
 }
 ``` 
 
