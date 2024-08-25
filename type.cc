@@ -2,6 +2,7 @@
 
 std::shared_ptr<CType> CType::IntType = std::make_shared<CPrimaryType>(Kind::TY_Int, 4, 4);
 std::shared_ptr<CType> CType::VoidType = std::make_shared<CPrimaryType>(Kind::TY_Void, 0, 0);
+std::shared_ptr<CType> CType::CharType = std::make_shared<CPrimaryType>(Kind::TY_Char, 1, 1);
 
 llvm::StringRef CType::GenAnonyRecordName(TagKind tagKind) {
     static long long idx = 0;
@@ -100,7 +101,7 @@ void CRecordType::UpdateUnionOffset() {
     maxElementIdx = max_element_idx;
 }
 
-CFuncType::CFuncType(std::shared_ptr<CType> retType, const std::vector<Param>& params, llvm::StringRef name) 
- : CType(CType::TY_Func, 1, 1), retType(retType), params(params), name(name) {
+CFuncType::CFuncType(std::shared_ptr<CType> retType, const std::vector<Param>& params, llvm::StringRef name, bool isVarArg) 
+ : CType(CType::TY_Func, 1, 1), retType(retType), params(params), name(name), isVarArg(isVarArg) {
 
 }

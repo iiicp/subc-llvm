@@ -26,10 +26,15 @@ private:
     llvm::Value * VisitContinueStmt(ContinueStmt *p) override;
     llvm::Value * VisitReturnStmt(ReturnStmt *p) override;
     llvm::Value * VisitBreakStmt(BreakStmt *p) override;
+    llvm::Value * VisitSwitchStmt(SwitchStmt *p) override;
+    llvm::Value * VisitCaseStmt(CaseStmt *p) override;
+    llvm::Value * VisitDefaultStmt(DefaultStmt *p) override;
+    llvm::Value * VisitDoWhileStmt(DoWhileStmt *p) override;
     llvm::Value * VisitVariableDecl(VariableDecl *decl) override;
     llvm::Value * VisitFuncDecl(FuncDecl *decl) override;
     llvm::Value * VisitBinaryExpr(BinaryExpr *binaryExpr) override;
     llvm::Value * VisitNumberExpr(NumberExpr *factorExpr) override;
+    llvm::Value * VisitStringExpr(StringExpr *expr) override;
     llvm::Value * VisitUnaryExpr(UnaryExpr *expr) override;
     llvm::Value * VisitSizeOfExpr(SizeOfExpr *expr) override;
     llvm::Value * VisitPostIncExpr(PostIncExpr *expr) override;
@@ -65,6 +70,7 @@ private:
 
     llvm::DenseMap<AstNode *, llvm::BasicBlock *> breakBBs;
     llvm::DenseMap<AstNode *, llvm::BasicBlock *> continueBBs;
+    llvm::SmallVector<llvm::SwitchInst *> switchStack;
 
     llvm::SmallVector<llvm::StringMap<std::pair<llvm::Value *, llvm::Type *>>> localVarMap;
     llvm::StringMap<std::pair<llvm::Value *, llvm::Type *>> globalVarMap;

@@ -5,6 +5,8 @@ llvm::StringRef Token::GetSpellingText(TokenType tokenType) {
     {
     case TokenType::number:
         return "number";
+    case TokenType::str:
+        return "string";
     case TokenType::identifier:
         return "identifier";
     case TokenType::kw_int:
@@ -119,21 +121,91 @@ llvm::StringRef Token::GetSpellingText(TokenType tokenType) {
         return "return";
     case TokenType::kw_void:
         return "void";
+    case TokenType::kw_const:
+        return "const";
+    case TokenType::kw_volatile:
+        return "volatile";
+    case TokenType::kw_static:
+        return "static";
+    case TokenType::ellipse:
+        return "...";
+    case TokenType::kw_while:
+        return "while";
+    case TokenType::kw_do:
+        return "do";
+    case TokenType::kw_switch:
+        return "switch";
+    case TokenType::kw_case:
+        return "case";
+    case TokenType::kw_default:
+        return "default";
     default:
         llvm::llvm_unreachable_internal();
     }
 }
 
 bool IsWhiteSpace(char ch) {
-    return ch == ' ' || ch == '\r' || ch == '\n';
+    return ch == ' ' || ch == '\r' || ch == '\n' || ch == '\t';
 }
 
 bool IsDigit(char ch) {
     return (ch >= '0' && ch <= '9');
 }
 
+bool IsHexDigit(char ch) {
+    return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
+}
+
 bool IsLetter(char ch) {
     return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch == '_');
+}
+
+// Read a single character in a char or string literal.
+static const char *c_char(int *res, const char *p) {
+  // Nonescaped
+  if (*p != '\\') {
+    *res = *p;
+    return p + 1;
+  }
+  p++;
+
+  int esc = 0;
+  switch (*p) {
+    case 'a': {
+        esc = '\a';
+        break;
+    }
+    case 'b': {
+        esc = '\b';
+        break;
+    }
+    case 'f': {
+        esc = '\f';
+        break;
+    }
+    case 'n': {
+        esc = '\n';
+        break;
+    }
+    case 'r': {
+        esc = '\r';
+        break;
+    }
+    case 't': {
+        esc = '\t';
+        break;
+    }
+    case 'v': {
+        esc = '\v';
+        break;
+    }
+    default : {
+        esc = *p;
+        break;
+    }
+  }
+    *res = esc;
+    return p + 1;
 }
 
 bool Lexer::StartWith(const char *p) {
@@ -183,7 +255,48 @@ void Lexer::NextToken(Token &tok) {
     tok.col = BufPtr - LineHeadPtr + 1;
 
     const char *StartPtr = BufPtr;
-    if (IsDigit(*BufPtr)) {
+
+    if (*BufPtr == '\'') {
+        tok.tokenType = TokenType::number;
+        tok.ty = CType::IntType;
+        tok.ptr = BufPtr++;
+        BufPtr = c_char(&tok.value, BufPtr);
+        if (*BufPtr != '\'')
+            diagEngine.Report(llvm::SMLoc::getFromPointer(BufPtr), diag::err_unclosed_character);
+        BufPtr += 1;
+        tok.len = BufPtr - StartPtr;
+    }
+    else if (*BufPtr == '"') {
+        BufPtr++; // skip "
+        tok.tokenType = TokenType::str;
+        tok.ptr = BufPtr;
+        std::string value;
+        while (*BufPtr != '"') {
+            if (!*BufPtr) {
+                diagEngine.Report(llvm::SMLoc::getFromPointer(BufPtr), diag::err_unclosed_string);
+            }
+            int c;
+            BufPtr = c_char(&c, BufPtr);
+            value += c;
+        }
+        BufPtr++; // skip "
+        tok.len = BufPtr - tok.ptr;
+        tok.strVal = value;
+        tok.ty = std::make_shared<CArrayType>(CType::CharType, tok.len);
+    }
+    else if (StartWith("0x") || StartWith("0X")) {
+        BufPtr += 2;
+        int number = 0;
+        while (IsHexDigit(*BufPtr)) {
+            number = number * 16 + (*BufPtr++ - '0');
+        }
+        tok.tokenType = TokenType::number;
+        tok.value = number;
+        tok.ty = CType::IntType;
+        tok.ptr = StartPtr;
+        tok.len = BufPtr - StartPtr;
+    }
+    else if (IsDigit(*BufPtr)) {
         int number = 0;
         while (IsDigit(*BufPtr)) {
             number = number * 10 + (*BufPtr++ - '0');
@@ -223,6 +336,24 @@ void Lexer::NextToken(Token &tok) {
             tok.tokenType = TokenType::kw_return;
         }else if (text == "void") {
             tok.tokenType = TokenType::kw_void;
+        }else if (text == "char") {
+            tok.tokenType = TokenType::kw_char;
+        }else if (text == "const") {
+            tok.tokenType = TokenType::kw_const;
+        }else if (text == "volatile") {
+            tok.tokenType = TokenType::kw_volatile;
+        }else if (text == "static") {
+            tok.tokenType = TokenType::kw_static;
+        }else if (text == "while") {
+            tok.tokenType = TokenType::kw_while;
+        }else if (text == "do") {
+            tok.tokenType = TokenType::kw_do;
+        }else if (text == "switch") {
+            tok.tokenType = TokenType::kw_switch;
+        }else if (text == "case") {
+            tok.tokenType = TokenType::kw_case;
+        }else if (text == "default") {
+            tok.tokenType = TokenType::kw_default;
         }
     }
     else {
@@ -527,10 +658,17 @@ void Lexer::NextToken(Token &tok) {
             break;
         }
         case '.': {
-            tok.tokenType = TokenType::dot;
-            BufPtr++;
-            tok.ptr = StartPtr;
-            tok.len = 1;            
+            if (BufPtr[1] == '.' && BufPtr[2] == '.') {
+                tok.tokenType = TokenType::ellipse;
+                BufPtr+=3;
+                tok.ptr = StartPtr;
+                tok.len = 3;
+            }else {
+                tok.tokenType = TokenType::dot;
+                BufPtr++;
+                tok.ptr = StartPtr;
+                tok.len = 1;            
+            }
             break;
         }        
         default:

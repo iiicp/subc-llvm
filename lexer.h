@@ -3,11 +3,13 @@
 #include "llvm/Support/raw_ostream.h"
 #include "type.h"
 #include "diag_engine.h"
+#include <string>
 
 /// char stream -> Token
 
 enum class TokenType : uint8_t{
     number,
+    str,            // string
     identifier,
     kw_int,         // int
     kw_if,          // if
@@ -65,6 +67,16 @@ enum class TokenType : uint8_t{
     arrow,          // ->
     kw_void,        // void
     kw_return,      // return
+    kw_char,        // char
+    kw_const,       // const
+    kw_volatile,    // volatile
+    kw_static,      // static
+    kw_while,       // while
+    kw_do,          // do
+    kw_switch,      // switch
+    kw_case,        // case
+    kw_default,     // default
+    ellipse,        // ...
     eof             // end
 };
 
@@ -72,8 +84,9 @@ class Token {
 public:
     TokenType tokenType;
     int row, col;
-    
+
     int value; // for number
+    std::string strVal; // for ""
     
     const char *ptr; // for debug && diag
     int len;

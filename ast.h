@@ -19,6 +19,7 @@ class PostMemberDotExpr;
 class PostMemberArrowExpr;
 class PostFuncCall;
 class NumberExpr;
+class StringExpr;
 class VariableAccessExpr;
 class IfStmt;
 class DeclStmt;
@@ -27,7 +28,10 @@ class ForStmt;
 class BreakStmt;
 class ContinueStmt;
 class ReturnStmt;
-
+class SwitchStmt;
+class CaseStmt;
+class DefaultStmt;
+class DoWhileStmt;
 
 class Visitor {
 public:
@@ -40,9 +44,14 @@ public:
     virtual llvm::Value * VisitBreakStmt(BreakStmt *p) = 0;
     virtual llvm::Value * VisitContinueStmt(ContinueStmt *p) = 0;
     virtual llvm::Value * VisitReturnStmt(ReturnStmt *p) = 0;
+    virtual llvm::Value * VisitSwitchStmt(SwitchStmt *p) = 0;
+    virtual llvm::Value * VisitCaseStmt(CaseStmt *p) = 0;
+    virtual llvm::Value * VisitDefaultStmt(DefaultStmt *p) = 0;
+    virtual llvm::Value * VisitDoWhileStmt(DoWhileStmt *p) = 0;
     virtual llvm::Value * VisitVariableDecl(VariableDecl *decl) = 0;
     virtual llvm::Value * VisitFuncDecl(FuncDecl *decl) = 0;
     virtual llvm::Value * VisitNumberExpr(NumberExpr *expr) = 0;
+    virtual llvm::Value * VisitStringExpr(StringExpr *expr) = 0;
     virtual llvm::Value * VisitBinaryExpr(BinaryExpr *binaryExpr) = 0;
     virtual llvm::Value * VisitUnaryExpr(UnaryExpr *expr) = 0;
     virtual llvm::Value * VisitSizeOfExpr(SizeOfExpr *expr) = 0;
@@ -67,6 +76,10 @@ public:
         ND_ContinueStmt,
         ND_IfStmt,
         ND_ReturnStmt,
+        ND_SwitchStmt,
+        ND_CaseStmt,
+        ND_DefaultStmt,
+        ND_DoWhileStmt,
         ND_VariableDecl,
         ND_FuncDecl,
         ND_BinaryExpr,
@@ -80,6 +93,7 @@ public:
         ND_PostMemberArrowExpr,
         ND_PostFuncCall,
         ND_NumberExpr,
+        ND_StringExpr,
         ND_VariableAccessExpr
     };
 private:
@@ -207,6 +221,70 @@ public:
 
     static bool classof(const AstNode *node) {
         return node->GetKind() == ND_ReturnStmt;
+    }
+};
+
+class SwitchStmt : public AstNode {
+public:
+    std::shared_ptr<AstNode> expr;
+    std::shared_ptr<AstNode> stmt;
+    std::shared_ptr<AstNode> defaultStmt{nullptr};
+public:
+    SwitchStmt():AstNode(ND_SwitchStmt) {}
+
+    llvm::Value * Accept(Visitor *v) override {
+        return v->VisitSwitchStmt(this);
+    }
+
+    static bool classof(const AstNode *node) {
+        return node->GetKind() == ND_SwitchStmt;
+    }
+};
+
+class CaseStmt : public AstNode {
+public:
+    std::shared_ptr<AstNode> expr;
+    std::shared_ptr<AstNode> stmt{nullptr};
+public:
+    CaseStmt():AstNode(ND_CaseStmt) {}
+
+    llvm::Value * Accept(Visitor *v) override {
+        return v->VisitCaseStmt(this);
+    }
+
+    static bool classof(const AstNode *node) {
+        return node->GetKind() == ND_CaseStmt;
+    }
+};
+
+class DefaultStmt : public AstNode {
+public:
+    std::shared_ptr<AstNode> stmt;
+public:
+    DefaultStmt():AstNode(ND_DefaultStmt) {}
+
+    llvm::Value * Accept(Visitor *v) override {
+        return v->VisitDefaultStmt(this);
+    }
+
+    static bool classof(const AstNode *node) {
+        return node->GetKind() == ND_DefaultStmt;
+    }
+};
+
+class DoWhileStmt : public AstNode {
+public:
+    std::shared_ptr<AstNode> expr;
+    std::shared_ptr<AstNode> stmt;
+public:
+    DoWhileStmt():AstNode(ND_DoWhileStmt) {}
+
+    llvm::Value * Accept(Visitor *v) override {
+        return v->VisitDoWhileStmt(this);
+    }
+
+    static bool classof(const AstNode *node) {
+        return node->GetKind() == ND_DoWhileStmt;
     }
 };
 
@@ -435,12 +513,25 @@ public:
 
 class NumberExpr : public AstNode{
 public:
+    int value;
     NumberExpr():AstNode(ND_NumberExpr){}
     llvm::Value * Accept(Visitor *v) override {
         return v->VisitNumberExpr(this);
     }
     static bool classof(const AstNode *node) {
         return node->GetKind() == ND_NumberExpr;
+    }
+};
+
+class StringExpr : public AstNode {
+public:
+    std::string value;
+    StringExpr():AstNode(ND_StringExpr){}
+    llvm::Value * Accept(Visitor *v) override {
+        return v->VisitStringExpr(this);
+    }
+    static bool classof(const AstNode *node) {
+        return node->GetKind() == ND_StringExpr;
     }
 };
 

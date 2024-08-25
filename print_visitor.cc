@@ -87,6 +87,41 @@ llvm::Value * PrintVisitor::VisitBreakStmt(BreakStmt *p) {
     return nullptr;
 }
 
+llvm::Value * PrintVisitor::VisitSwitchStmt(SwitchStmt *p) {
+    *out << "switch(";
+    p->expr->Accept(this);
+    *out << ")";
+    p->stmt->Accept(this);
+
+    return nullptr;
+}
+
+llvm::Value * PrintVisitor::VisitCaseStmt(CaseStmt *p) {
+    *out << "case ";
+    p->expr->Accept(this);
+    *out << ":";
+    p->stmt->Accept(this);
+
+    return nullptr;
+}
+
+llvm::Value * PrintVisitor::VisitDefaultStmt(DefaultStmt *p) {
+    *out << "default:";
+    p->stmt->Accept(this);
+
+    return nullptr;
+}
+
+llvm::Value * PrintVisitor::VisitDoWhileStmt(DoWhileStmt *p) {
+    *out << "do ";
+    p->stmt->Accept(this);
+    *out << "while (";
+    p->expr->Accept(this);
+    *out << ");";
+
+    return nullptr;
+}
+
 llvm::Value * PrintVisitor::VisitVariableDecl(VariableDecl *decl) {
     decl->ty->Accept(this);
     llvm::StringRef text(decl->tok.ptr, decl->tok.len);
@@ -251,8 +286,13 @@ llvm::Value * PrintVisitor::VisitBinaryExpr(BinaryExpr *binaryExpr) {
 
 llvm::Value * PrintVisitor::VisitNumberExpr(NumberExpr *expr) {
 
-    *out << llvm::StringRef(expr->tok.ptr, expr->tok.len);
+    *out << expr->value;
 
+    return nullptr;
+}
+
+llvm::Value * PrintVisitor::VisitStringExpr(StringExpr *expr) {
+    *out << llvm::StringRef(expr->tok.ptr, expr->tok.len);
     return nullptr;
 }
 
@@ -418,6 +458,9 @@ llvm::Type * PrintVisitor::VisitFuncType(CFuncType *ty) {
         if (i < size - 1) {
             *out << ",";
         }
+    }
+    if (ty->IsVarArg()) {
+        *out << ",...";
     }
     *out << ")";
     return nullptr;

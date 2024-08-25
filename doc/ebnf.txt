@@ -2,7 +2,9 @@ prog       ::= external-decl+
 external-decl ::= func-def | decl-stmt
 func-def   ::= decl-spec declarator block-stmt
 block-stmt ::= stmt*
-stmt       ::= decl-stmt | expr-stmt | null-stmt | if-stmt | block-stmt | for-stmt | break-stmt | continue-stmt
+stmt       ::= decl-stmt | expr-stmt | null-stmt | if-stmt | block-stmt | for-stmt | 
+				break-stmt | continue-stmt | while-stmt | do-while-stm | switch-stmt |
+				case-stmt | default-stmt
 decl-stmt  ::= decl-spec init-declarator-list? ";"
 init-declarator-list ::= declarator (= initializer)? ("," declarator (= initializer)?)*
 decl-spec  ::= "int" | struct-or-union-specifier
@@ -20,7 +22,12 @@ initializer ::= assign | "{" initializer ("," initializer)*  "}"
 null-stmt     ::= ";"
 if-stmt       ::= "if" "(" expr ")" stmt ( "else" stmt )?
 for-stmt      ::= "for" "(" expr? ";" expr? ";" expr? ")" stmt
-							    "for" "(" decl-stmt expr? ";" expr? ")" stmt
+							    "for" "(" decl-stmt expr? ";" expr? ")" stmt 
+while-stmt 	  ::= "while" "(" expr ")" stmt								 
+do-while-stmt ::= "do" stmt	"while" "(" expr ")" ";"
+switch-stmt   ::= "switch" "(" expr ")" stmt
+case-stmt	  ::= "case" expr ":" stmt 
+default-stmt  ::= "default" ":" stmt
 block-stmt    ::= "{" stmt* "}"
 break-stmt    ::= "break" ";"
 continue-stmt ::= "continue" ";"

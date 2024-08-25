@@ -233,12 +233,22 @@ std::shared_ptr<AstNode> Sema::SemaPostMemberArrowNode(std::shared_ptr<AstNode> 
     return node;
 }
 
-std::shared_ptr<AstNode> Sema::SemaNumberExprNode(Token tok, std::shared_ptr<CType> ty) {
+std::shared_ptr<AstNode> Sema::SemaNumberExprNode(Token tok,int val,std::shared_ptr<CType> ty) {
     auto expr = std::make_shared<NumberExpr>();
     expr->tok = tok;
     expr->ty = ty;
+    expr->value = val;
     return expr;
 }
+
+std::shared_ptr<AstNode> Sema::SemaStringExprNode(Token tok, std::string val, std::shared_ptr<CType> ty) {
+    auto expr = std::make_shared<StringExpr>();
+    expr->tok = tok;
+    expr->ty = ty;
+    expr->value = val;
+    return expr;
+}
+
 std::shared_ptr<VariableDecl::InitValue> Sema::SemaDeclInitValue(std::shared_ptr<CType> declType, std::shared_ptr<AstNode> value, std::vector<int> &offsetList, Token tok)
  {
     // if (declType->GetKind() != value->ty->GetKind() && (mode == Mode::Normal)) {
@@ -343,7 +353,7 @@ std::shared_ptr<AstNode> Sema::SemaFuncCall(std::shared_ptr<AstNode> left, const
     }
 
     CFuncType *funcType = llvm::dyn_cast<CFuncType>(left->ty.get());
-    if (funcType->GetParams().size() != args.size() && (mode == Mode::Normal)) {
+    if ((funcType->GetParams().size() != args.size()) && !funcType->IsVarArg() && (mode == Mode::Normal)) {
         diagEngine.Report(llvm::SMLoc::getFromPointer(iden.ptr), diag::err_miss, "arg count not match");
     }
 

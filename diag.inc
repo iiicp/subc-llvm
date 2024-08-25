@@ -4,11 +4,16 @@
 
 /// lexer
 DIAG(err_unknown_char, Error, "unknown char '{0}'")
+DIAG(err_unclosed_character, Error, "unclosed character literal")
+DIAG(err_unclosed_string, Error, "unclosed string literal")
 
 /// parser
 DIAG(err_expected, Error, "expected '{0}', but found '{1}'")
 DIAG(err_break_stmt, Error, "'break' statement not in loop or switch statement")
 DIAG(err_continue_stmt, Error, "'continue' statement not in loop or switch statement")
+DIAG(err_case_stmt, Error, "'case' statement not in switch statement")
+DIAG(err_default_stmt, Error, "'default' statement not in switch statement")
+DIAG(err_multi_default_stmt, Error, "only one 'default' statement in switch statement")
 
 /// sema
 DIAG(err_redefined, Error, "redefined symbol '{0}")
@@ -20,5 +25,6 @@ DIAG(err_expected_ype, Error, "expected {0}")
 DIAG(err_expected_lvalue, Error, "expected lvalue")
 DIAG(err_expected_ex, Error, "expected '{0}'")
 DIAG(err_miss, Error, "miss '{0}'")
+DIAG(err_large_length, Error, "large length")
 
 #undef DIAG

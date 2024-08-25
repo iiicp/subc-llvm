@@ -27,6 +27,7 @@ class CType {
 public:
     enum Kind {
         TY_Void,
+        TY_Char,
         TY_Int,
         TY_Point,
         TY_Array,
@@ -51,6 +52,7 @@ public:
 
     static std::shared_ptr<CType> IntType;
     static std::shared_ptr<CType> VoidType;
+    static std::shared_ptr<CType> CharType;
 
     static llvm::StringRef GenAnonyRecordName(TagKind tagKind);
 };
@@ -90,7 +92,7 @@ public:
 class CArrayType : public CType {
 private:
     std::shared_ptr<CType> elementType;
-    int elementCount;
+    int elementCount{-1};
 public:
     CArrayType(std::shared_ptr<CType> elementType, int elementCount)
     :CType(Kind::TY_Array, elementCount * elementType->GetSize(), elementType->GetAlign()), elementType(elementType), elementCount(elementCount) {}
@@ -174,9 +176,10 @@ private:
     std::shared_ptr<CType> retType;
     std::vector<Param> params;
     llvm::StringRef name;
+    bool isVarArg{false};
 public:
     bool hasBody{false};
-    CFuncType(std::shared_ptr<CType> retType, const std::vector<Param>& params, llvm::StringRef name);
+    CFuncType(std::shared_ptr<CType> retType, const std::vector<Param>& params, llvm::StringRef name, bool isVarArg);
     
     const llvm::StringRef GetName() {
         return name;
@@ -188,6 +191,10 @@ public:
 
     std::shared_ptr<CType> GetRetType() {
         return retType;
+    }
+
+    bool IsVarArg() {
+        return isVarArg;
     }
 
     llvm::Type * Accept(TypeVisitor *v) override {

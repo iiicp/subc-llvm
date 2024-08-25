@@ -14,7 +14,8 @@ public:
     Sema(DiagEngine &diagEngine):diagEngine(diagEngine) {}
     std::shared_ptr<AstNode> SemaVariableDeclNode(Token tok, std::shared_ptr<CType> ty, bool isGlobal);
     std::shared_ptr<AstNode> SemaVariableAccessNode(Token tok);
-    std::shared_ptr<AstNode> SemaNumberExprNode(Token tok, std::shared_ptr<CType> ty);
+    std::shared_ptr<AstNode> SemaNumberExprNode(Token tok, int val, std::shared_ptr<CType> ty);
+    std::shared_ptr<AstNode> SemaStringExprNode(Token tok, std::string val, std::shared_ptr<CType> ty);
     std::shared_ptr<AstNode> SemaBinaryExprNode( std::shared_ptr<AstNode> left,std::shared_ptr<AstNode> right, BinaryOp op);
 
     std::shared_ptr<AstNode> SemaUnaryExprNode( std::shared_ptr<AstNode> unary, UnaryOp op, Token tok);

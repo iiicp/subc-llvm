@@ -33,20 +33,29 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
     switch (binaryExpr->op)
     {
     case BinaryOp::add: {
-        llvm::Type *ty = binaryExpr->left->ty->Accept(this);
-        if (ty->isPointerTy()) {
-            llvm::Value *newVal = irBuilder.CreateInBoundsGEP(ty, left, {right});
+        llvm::Type *lty = binaryExpr->left->ty->Accept(this);
+        llvm::Type *rty = binaryExpr->right->ty->Accept(this);
+        if (lty->isPointerTy()) {
+            llvm::Value *newVal = irBuilder.CreateInBoundsGEP(lty, left, {right});
+            return newVal;
+        }else if (rty->isPointerTy()) {
+            llvm::Value *newVal = irBuilder.CreateInBoundsGEP(rty, right, {left});
             return newVal;
         }else {
             return irBuilder.CreateNSWAdd(left, right);
         }
     }
     case BinaryOp::sub:{
-        llvm::Type *ty = binaryExpr->left->ty->Accept(this);
-        if (ty->isPointerTy()) {
-            llvm::Value *newVal = irBuilder.CreateInBoundsGEP(ty, left, {irBuilder.CreateNeg(right)});
+        llvm::Type *lty = binaryExpr->left->ty->Accept(this);
+        llvm::Type *rty = binaryExpr->right->ty->Accept(this);
+        if (lty->isPointerTy()) {
+            llvm::Value *newVal = irBuilder.CreateInBoundsGEP(lty, left, {irBuilder.CreateNeg(right)});
             return newVal;
-        }else {
+        }else if (rty->isPointerTy()) {
+            llvm::Value *newVal = irBuilder.CreateInBoundsGEP(rty, right, {irBuilder.CreateNeg(left)});
+            return newVal;
+        }
+        else {
             return irBuilder.CreateNSWSub(left, right);
         }
     }
@@ -102,7 +111,7 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
     case BinaryOp::logical_and:{
         /// A && B
 
-        llvm::BasicBlock *nextBB = llvm::BasicBlock::Create(context, "nextBB", curFunc);
+        llvm::BasicBlock *nextBB = llvm::BasicBlock::Create(context, "nextBB");
         llvm::BasicBlock *falseBB = llvm::BasicBlock::Create(context, "falseBB");
         llvm::BasicBlock *mergeBB = llvm::BasicBlock::Create(context, "mergeBB");
 
@@ -111,6 +120,7 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
         llvm::Value *val = irBuilder.CreateICmpNE(left, irBuilder.getInt32(0));
         irBuilder.CreateCondBr(val, nextBB, falseBB);
 
+        nextBB->insertInto(curFunc);
         irBuilder.SetInsertPoint(nextBB);
         llvm::Value *right = binaryExpr->right->Accept(this);
         right = irBuilder.CreateICmpNE(right, irBuilder.getInt32(0));
@@ -122,7 +132,7 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
         /// 原因是：binaryExpr->right->Accept(this) 内部会生成新的基本块
 
         /// 拿到当前插入的block, 建立一个值和基本块的关系 {right, nextBB}
-        nextBB = irBuilder.GetInsertBlock();
+        auto *nextLastBB = irBuilder.GetInsertBlock();
         
         falseBB->insertInto(curFunc);
         irBuilder.SetInsertPoint(falseBB);
@@ -131,7 +141,7 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
         mergeBB->insertInto(curFunc);
         irBuilder.SetInsertPoint(mergeBB);
         llvm::PHINode *phi = irBuilder.CreatePHI(irBuilder.getInt32Ty(), 2);
-        phi->addIncoming(right, nextBB);
+        phi->addIncoming(right, nextLastBB);
         phi->addIncoming(irBuilder.getInt32(0), falseBB);
 
         return phi;
@@ -139,7 +149,7 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
     case BinaryOp::logical_or: {
         /// A || B && C
 
-        llvm::BasicBlock *nextBB = llvm::BasicBlock::Create(context, "nextBB", curFunc);
+        llvm::BasicBlock *nextBB = llvm::BasicBlock::Create(context, "nextBB");
         llvm::BasicBlock *trueBB = llvm::BasicBlock::Create(context, "trueBB");
         llvm::BasicBlock *mergeBB = llvm::BasicBlock::Create(context, "mergeBB");
 
@@ -148,6 +158,7 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
         llvm::Value *val = irBuilder.CreateICmpNE(left, irBuilder.getInt32(0));
         irBuilder.CreateCondBr(val, trueBB, nextBB);
 
+        nextBB->insertInto(curFunc);
         irBuilder.SetInsertPoint(nextBB);
         /// 右子树内部也生成了基本块
         llvm::Value *right = binaryExpr->right->Accept(this);
@@ -159,7 +170,7 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
         /// 原因是：binaryExpr->right->Accept(this) 内部会生成新的基本块
 
         /// 拿到当前插入的block, 建立一个值和基本块的关系 {right, nextBB}
-        nextBB = irBuilder.GetInsertBlock();
+        auto *nextLastBB = irBuilder.GetInsertBlock();
 
         trueBB->insertInto(curFunc);
         irBuilder.SetInsertPoint(trueBB);
@@ -168,7 +179,7 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
         mergeBB->insertInto(curFunc);
         irBuilder.SetInsertPoint(mergeBB);
         llvm::PHINode *phi = irBuilder.CreatePHI(irBuilder.getInt32Ty(), 2);
-        phi->addIncoming(right, nextBB);
+        phi->addIncoming(right, nextLastBB);
         phi->addIncoming(irBuilder.getInt32(1), trueBB);
 
         return phi;
@@ -271,15 +282,27 @@ llvm::Value * CodeGen::VisitBinaryExpr(BinaryExpr *binaryExpr) {
 }
 
 llvm::Value * CodeGen::VisitNumberExpr(NumberExpr *numberExpr) {
-    return irBuilder.getInt32(numberExpr->tok.value);
+    return irBuilder.getInt32(numberExpr->value);
+}
+
+llvm::Value * CodeGen::VisitStringExpr(StringExpr *expr) {
+    llvm::Constant *constant = llvm::ConstantDataArray::getString(context, expr->value);
+    llvm::GlobalValue *g = new llvm::GlobalVariable(*module, constant->getType(), true, llvm::GlobalValue::PrivateLinkage, constant);
+    return g;
 }
 
 llvm::Value * CodeGen::VisitBlockStmt(BlockStmt *p) {
-    llvm::Value *lastVal = nullptr;
+    PushScope();
     for (const auto &stmt : p->nodeVec) {
-        lastVal = stmt->Accept(this);
+        stmt->Accept(this);
+        if (llvm::dyn_cast<ReturnStmt>(stmt.get()) ||
+            llvm::dyn_cast<BreakStmt>(stmt.get()) ||
+            llvm::dyn_cast<ContinueStmt>(stmt.get())) {
+                break;
+        }
     }
-    return lastVal;
+    PopScope();
+    return nullptr;
 }
 
 llvm::Value * CodeGen::VisitDeclStmt(DeclStmt *p) {
@@ -292,40 +315,36 @@ llvm::Value * CodeGen::VisitDeclStmt(DeclStmt *p) {
 
 /// 划分基本块 
 llvm::Value * CodeGen::VisitIfStmt(IfStmt *p) {
-    llvm::BasicBlock *condBB = llvm::BasicBlock::Create(context, "cond", curFunc);
     llvm::BasicBlock *thenBB = llvm::BasicBlock::Create(context, "then");
     llvm::BasicBlock *elseBB = nullptr;
     if (p->elseNode)
         elseBB = llvm::BasicBlock::Create(context, "else");
     llvm::BasicBlock *lastBB = llvm::BasicBlock::Create(context, "last");
 
-    irBuilder.CreateBr(condBB);
-    irBuilder.SetInsertPoint(condBB);
     llvm::Value *val = p->condNode->Accept(this);
     CastValue(val, irBuilder.getInt32Ty());
     /// 整型比较指令
     llvm::Value *condVal = irBuilder.CreateICmpNE(val, irBuilder.getInt32(0));
-    if (p->elseNode) {
-        irBuilder.CreateCondBr(condVal, thenBB, elseBB);
+    irBuilder.CreateCondBr(condVal, thenBB, p->elseNode ? elseBB : lastBB);
 
-        /// handle then bb
-        thenBB->insertInto(curFunc);
-        irBuilder.SetInsertPoint(thenBB);
-        p->thenNode->Accept(this);
+    /// handle then bb
+    thenBB->insertInto(curFunc);
+    irBuilder.SetInsertPoint(thenBB);
+    p->thenNode->Accept(this);
+
+    auto *tmpBB = irBuilder.GetInsertBlock();
+    if (tmpBB->empty() || !tmpBB->back().isTerminator()) {
         irBuilder.CreateBr(lastBB);
+    }
 
+    if (elseBB) {
         elseBB->insertInto(curFunc);
         irBuilder.SetInsertPoint(elseBB);
         p->elseNode->Accept(this);
-        irBuilder.CreateBr(lastBB);
-    }else {
-        irBuilder.CreateCondBr(condVal, thenBB, lastBB);
-
-        /// handle then bb
-        thenBB->insertInto(curFunc);
-        irBuilder.SetInsertPoint(thenBB);
-        p->thenNode->Accept(this);
-        irBuilder.CreateBr(lastBB);
+        auto *tmpBB = irBuilder.GetInsertBlock();
+        if (tmpBB->empty() || !tmpBB->back().isTerminator()) {
+            irBuilder.CreateBr(lastBB);
+        }
     }
 
     lastBB->insertInto(curFunc);
@@ -335,7 +354,6 @@ llvm::Value * CodeGen::VisitIfStmt(IfStmt *p) {
 }
 
 llvm::Value * CodeGen::VisitForStmt(ForStmt *p) {
-    llvm::BasicBlock *initBB = llvm::BasicBlock::Create(context, "for.init", curFunc);
     llvm::BasicBlock *condBB = llvm::BasicBlock::Create(context, "for.cond");
     llvm::BasicBlock *incBB = llvm::BasicBlock::Create(context, "for.inc");
     llvm::BasicBlock *bodyBB = llvm::BasicBlock::Create(context, "for.body");
@@ -344,8 +362,6 @@ llvm::Value * CodeGen::VisitForStmt(ForStmt *p) {
     breakBBs.insert({p, lastBB});
     continueBBs.insert({p, incBB});
 
-    irBuilder.CreateBr(initBB);
-    irBuilder.SetInsertPoint(initBB);
     if (p->initNode) {
         p->initNode->Accept(this);
     }
@@ -367,7 +383,12 @@ llvm::Value * CodeGen::VisitForStmt(ForStmt *p) {
     if (p->bodyNode) {
         p->bodyNode->Accept(this);
     }
-    irBuilder.CreateBr(incBB);
+    /// 更新body
+    auto *tmpBB = irBuilder.GetInsertBlock();
+    /// fix, for body 内部可能已经包含了终结指令
+    if (tmpBB->empty() || !tmpBB->back().isTerminator()) {
+        irBuilder.CreateBr(incBB);
+    }
 
     incBB->insertInto(curFunc);
     irBuilder.SetInsertPoint(incBB);
@@ -376,11 +397,11 @@ llvm::Value * CodeGen::VisitForStmt(ForStmt *p) {
     }
     irBuilder.CreateBr(condBB);
 
-    breakBBs.erase(p);
-    continueBBs.erase(p);
-
     lastBB->insertInto(curFunc);
     irBuilder.SetInsertPoint(lastBB);
+
+    breakBBs.erase(p);
+    continueBBs.erase(p);
 
     return nullptr;
 }
@@ -389,9 +410,6 @@ llvm::Value * CodeGen::VisitContinueStmt(ContinueStmt *p) {
     /// jump incBB
     llvm::BasicBlock *bb = continueBBs[p->target.get()];
     irBuilder.CreateBr(bb);
-
-    llvm::BasicBlock *out = llvm::BasicBlock::Create(context, "for.continue.death", curFunc);
-    irBuilder.SetInsertPoint(out);
     return nullptr;
 }
 
@@ -408,9 +426,129 @@ llvm::Value * CodeGen::VisitBreakStmt(BreakStmt *p) {
     /// jump lastBB
     llvm::BasicBlock *bb = breakBBs[p->target.get()];
     irBuilder.CreateBr(bb);
+    return nullptr;
+}
 
-    llvm::BasicBlock *out = llvm::BasicBlock::Create(context, "for.break.death", curFunc);
-    irBuilder.SetInsertPoint(out);
+llvm::Value * CodeGen::VisitSwitchStmt(SwitchStmt *p) {
+    llvm::Value *val = p->expr->Accept(this);
+    auto *defaultBB = llvm::BasicBlock::Create(context, "default");
+    auto *thenBB = llvm::BasicBlock::Create(context, "then");
+    auto *switchInst = irBuilder.CreateSwitch(val, defaultBB);
+
+    breakBBs.insert({p, thenBB});
+    switchStack.push_back(switchInst);
+
+    /// 这里会有0到多个case语句，0到1个default语句
+    p->stmt->Accept(this);
+
+    /// 考虑最后的default语句
+    /// 1. 没有 default stmt，插入一个默认的default stmt
+    if (!p->defaultStmt) {
+        defaultBB->insertInto(curFunc);
+        irBuilder.SetInsertPoint(defaultBB);
+        irBuilder.CreateBr(thenBB);
+    }
+    //  2. default 是否有 terminate 指令
+    if (defaultBB->empty() || !defaultBB->back().isTerminator()) {
+        irBuilder.SetInsertPoint(defaultBB);
+        irBuilder.CreateBr(thenBB);
+    }
+
+    thenBB->insertInto(curFunc);
+    irBuilder.SetInsertPoint(thenBB);
+
+    breakBBs.erase(p);
+    switchStack.pop_back();
+
+    return nullptr;
+}
+
+llvm::Value * CodeGen::VisitCaseStmt(CaseStmt *p) {
+    auto *switchInst = switchStack.back();
+    llvm::Value *val = p->expr->Accept(this);
+    CastValue(val, switchInst->getCondition()->getType());
+
+    /// case 语句需要新建一个基本块
+    auto *caseBB = llvm::BasicBlock::Create(context);
+    auto *constant = llvm::dyn_cast<llvm::ConstantInt>(val);
+    if (!constant) {
+        assert(0 && "expected constant expression in case");
+    }
+
+    /// 考虑上一个case 语句
+    if (switchInst->getNumCases() > 0) {
+        const auto &lastCase = switchInst->case_begin() + (switchInst->getNumCases() - 1);
+        /// 获取当前case的最后一个基本块
+        const auto &lastCaseBB = lastCase->getCaseSuccessor();
+        if (lastCaseBB->empty() || !lastCaseBB->back().isTerminator()) {
+            irBuilder.CreateBr(caseBB);
+        }
+    }
+
+    switchInst->addCase(constant, caseBB);
+    caseBB->insertInto(curFunc);
+    irBuilder.SetInsertPoint(caseBB);
+    if (p->stmt) {
+        p->stmt->Accept(this);
+    }
+    return nullptr;
+}
+
+llvm::Value * CodeGen::VisitDefaultStmt(DefaultStmt *p) {
+    auto *switchInst = switchStack.back();
+    /// 从之前的switch指令里面，获取到default dest
+    auto *defaultBB = switchInst->getDefaultDest();
+
+    /// 考虑最后一个case 语句
+    if (switchInst->getNumCases() > 0) {
+        const auto &lastCase = switchInst->case_begin() + (switchInst->getNumCases() - 1);
+        const auto &lastCaseBB = lastCase->getCaseSuccessor();
+        if (lastCaseBB->empty() || !lastCaseBB->back().isTerminator()) {
+            irBuilder.CreateBr(defaultBB);
+        }
+    }
+
+    defaultBB->insertInto(curFunc);
+    irBuilder.SetInsertPoint(defaultBB);
+    p->stmt->Accept(this);
+    return nullptr;
+}
+
+llvm::Value * CodeGen::VisitDoWhileStmt(DoWhileStmt *p) {
+    
+    auto *body = llvm::BasicBlock::Create(context, "body");
+    auto *cond = llvm::BasicBlock::Create(context, "cond");
+    auto *then = llvm::BasicBlock::Create(context, "then");
+
+    breakBBs.insert({p, then});
+    continueBBs.insert({p, cond});
+
+    /// 生成body inst
+    irBuilder.CreateBr(body);
+    body->insertInto(curFunc);
+    irBuilder.SetInsertPoint(body);
+    p->stmt->Accept(this);
+
+    auto *tmpBB = irBuilder.GetInsertBlock();
+    if (tmpBB->empty() || !tmpBB->back().isTerminator()) {
+        irBuilder.CreateBr(cond);
+    }
+
+    /// 生成cond inst
+    cond->insertInto(curFunc);
+    irBuilder.SetInsertPoint(cond);
+    llvm::Value *val = p->expr->Accept(this);
+    CastValue(val, irBuilder.getInt32Ty());
+    llvm::Value *condVal = irBuilder.CreateICmpNE(val, irBuilder.getInt32(0));
+    irBuilder.CreateCondBr(condVal, body, then);
+
+    /// 生成 then inst
+    then->insertInto(curFunc);
+    irBuilder.SetInsertPoint(then);
+
+    breakBBs.erase(p);
+    continueBBs.erase(p);
+
     return nullptr;
 }
 
@@ -569,7 +707,6 @@ llvm::Value * CodeGen::VisitFuncDecl(FuncDecl *decl) {
 
     BasicBlock *entryBB = BasicBlock::Create(context, "entry", func);
     irBuilder.SetInsertPoint(entryBB);
-
     /// 记录当前函数
     curFunc = func;
 
@@ -794,7 +931,9 @@ llvm::Value * CodeGen::VisitPostFuncCall(PostFuncCall *expr) {
     llvm::SmallVector<llvm::Value *> args;
     for (const auto &arg : expr->args) {
         llvm::Value *val = arg->Accept(this);
-        CastValue(val, param[i].type->Accept(this));
+        if (i < param.size()) {
+            CastValue(val, param[i].type->Accept(this));
+        }
         args.push_back(val);
         ++i;
     }
@@ -806,28 +945,29 @@ llvm::Value * CodeGen::VisitThreeExpr(ThreeExpr *expr) {
     CastValue(val, irBuilder.getInt32Ty());
     llvm::Value *cond = irBuilder.CreateICmpNE(val, irBuilder.getInt32(0));
 
-    llvm::BasicBlock *thenBB = llvm::BasicBlock::Create(context, "then", curFunc);
+    llvm::BasicBlock *thenBB = llvm::BasicBlock::Create(context, "then");
     llvm::BasicBlock *elsBB = llvm::BasicBlock::Create(context, "els");
     llvm::BasicBlock *mergeBB = llvm::BasicBlock::Create(context, "merge");
     irBuilder.CreateCondBr(cond, thenBB, elsBB);
 
+    thenBB->insertInto(curFunc);
     irBuilder.SetInsertPoint(thenBB);
     llvm::Value *thenVal = expr->then->Accept(this);
-    thenBB = irBuilder.GetInsertBlock();
+    auto *thenLastBB = irBuilder.GetInsertBlock();
     irBuilder.CreateBr(mergeBB);
 
     elsBB->insertInto(curFunc);
     irBuilder.SetInsertPoint(elsBB);
     llvm::Value *elsVal = expr->els->Accept(this);
-    elsBB = irBuilder.GetInsertBlock();
+    auto *elsLastBB = irBuilder.GetInsertBlock();
     irBuilder.CreateBr(mergeBB);
 
     mergeBB->insertInto(curFunc);
     irBuilder.SetInsertPoint(mergeBB);
 
     llvm::PHINode *phi = irBuilder.CreatePHI(expr->then->ty->Accept(this), 2);
-    phi->addIncoming(thenVal, thenBB);
-    phi->addIncoming(elsVal, elsBB);
+    phi->addIncoming(thenVal, thenLastBB);
+    phi->addIncoming(elsVal, elsLastBB);
     return phi;
 }
 
@@ -849,6 +989,8 @@ llvm::Type * CodeGen::VisitPrimaryType(CPrimaryType *ty) {
         return irBuilder.getInt32Ty();
     }else if (ty->GetKind() == CType::TY_Void) {
         return irBuilder.getVoidTy();
+    }else if (ty->GetKind() == CType::TY_Char) {
+        return irBuilder.getInt8Ty();
     }
     assert(0);
     return nullptr;
@@ -897,7 +1039,7 @@ llvm::Type * CodeGen::VisitFuncType(CFuncType *ty) {
     for (const auto &arg : ty->GetParams()) {
         argsType.push_back(arg.type->Accept(this));
     }
-    return llvm::FunctionType::get(retTy, argsType, false);
+    return llvm::FunctionType::get(retTy, argsType, ty->IsVarArg());
 }
 
 
@@ -934,7 +1076,10 @@ void CodeGen::ClearVarScope() {
 void CodeGen::CastValue(llvm::Value *&val, llvm::Type *destTy) {
     if (val->getType() != destTy) {
         if (val->getType()->isIntegerTy()) {
-            if (destTy->isPointerTy()) {
+            if (destTy->isIntegerTy()) {
+                val = irBuilder.CreateIntCast(val, destTy, true);
+            }
+            else if (destTy->isPointerTy()) {
                 val = irBuilder.CreateIntToPtr(val, destTy);
             }
         }else if (val->getType()->isPointerTy()) {
@@ -944,7 +1089,13 @@ void CodeGen::CastValue(llvm::Value *&val, llvm::Type *destTy) {
         }else if (val->getType()->isArrayTy()) {
             if (destTy->isPointerTy()) {
                 auto *load = llvm::dyn_cast<llvm::LoadInst>(val);
-                val = load->getPointerOperand();
+                if (load) {
+                    val = load->getPointerOperand();
+                }else {
+                    llvm::ArrayType *pty = llvm::dyn_cast<llvm::ArrayType>(val->getType());
+                    llvm::Value *zero = irBuilder.getInt32(0);
+                    val = irBuilder.CreateInBoundsGEP(pty->getArrayElementType(), val, {zero});
+                }
             }
         }
     }

@@ -8,6 +8,7 @@ private:
     Sema &sema;
     std::vector<std::shared_ptr<AstNode>> breakNodes;
     std::vector<std::shared_ptr<AstNode>> continueNodes;
+    std::vector<std::shared_ptr<AstNode>> switchNodes;
 public:
     Parser(Lexer &lexer, Sema &sema) : lexer(lexer), sema(sema) {
         Advance();
@@ -28,12 +29,18 @@ private:
     std::shared_ptr<CType> DirectDeclaratorArraySuffix(std::shared_ptr<CType> baseType, bool isGlobal);
     std::shared_ptr<CType> DirectDeclaratorFuncSuffix(Token iden, std::shared_ptr<CType> baseType, bool isGlobal);
     bool ParseInitializer(std::vector<std::shared_ptr<VariableDecl::InitValue>> &arr, std::shared_ptr<CType> declType, std::vector<int> &offsetList, bool hasLBrace);
+    bool ParseStringInitializer(std::vector<std::shared_ptr<VariableDecl::InitValue>> &arr, std::shared_ptr<CType> declType, std::vector<int> &offsetList);
 
     std::shared_ptr<AstNode> ParseIfStmt();
     std::shared_ptr<AstNode> ParseForStmt();
+    std::shared_ptr<AstNode> ParseWhileStmt();
+    std::shared_ptr<AstNode> ParseDoWhileStmt();
     std::shared_ptr<AstNode> ParseBreakStmt();
     std::shared_ptr<AstNode> ParseContinueStmt();
     std::shared_ptr<AstNode> ParseReturnStmt();
+    std::shared_ptr<AstNode> ParseSwitchStmt();
+    std::shared_ptr<AstNode> ParseCaseStmt();
+    std::shared_ptr<AstNode> ParseDefaultStmt();
     std::shared_ptr<AstNode> ParseExprStmt();
     std::shared_ptr<AstNode> ParseExpr();
     std::shared_ptr<AstNode> ParseAssignExpr();
@@ -63,6 +70,8 @@ private:
 
     bool IsFuncDecl();
 
+    bool IsStringArrayType(std::shared_ptr<CType> ty);
+
     /// 消费 token 的函数
     /// 检测当前 token是否是该类型，不会消费
     bool Expect(TokenType tokenType);
@@ -70,6 +79,8 @@ private:
     bool Consume(TokenType tokenType);
     /// 前进一个 token
     void Advance();
+
+    void ConsumeTypeQualify();
 
     DiagEngine &GetDiagEngine() {
         return lexer.GetDiagEngine();

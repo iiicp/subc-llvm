@@ -69,6 +69,21 @@ std::shared_ptr<AstNode> Parser::ParseStmt() {
     else if (tok.tokenType == TokenType::kw_return) {
         return ParseReturnStmt();
     }
+    else if (tok.tokenType == TokenType::kw_while) {
+        return ParseWhileStmt();
+    }
+    else if (tok.tokenType == TokenType::kw_do) {
+        return ParseDoWhileStmt();
+    }
+    else if (tok.tokenType == TokenType::kw_switch) {
+        return ParseSwitchStmt();
+    }
+    else if (tok.tokenType == TokenType::kw_case) {
+        return ParseCaseStmt();
+    }
+    else if (tok.tokenType == TokenType::kw_default) {
+        return ParseDefaultStmt();
+    }
     /// expr stmt
     else {
         return ParseExprStmt();
@@ -94,6 +109,7 @@ std::shared_ptr<AstNode> Parser::ParseBlockStmt() {
 }
 
 std::shared_ptr<CType> Parser::ParseDeclSpec() {
+    ConsumeTypeQualify();
     if (tok.tokenType == TokenType::kw_int) {
         Consume(TokenType::kw_int);
         return CType::IntType;
@@ -102,6 +118,9 @@ std::shared_ptr<CType> Parser::ParseDeclSpec() {
     }else if (tok.tokenType == TokenType::kw_void) {
         Consume(TokenType::kw_void);
         return CType::VoidType;
+    }else if (tok.tokenType == TokenType::kw_char) {
+        Consume(TokenType::kw_char);
+        return CType::CharType;
     }
     GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_type);
     return nullptr;
@@ -200,9 +219,16 @@ std::shared_ptr<CType> Parser::DirectDeclaratorFuncSuffix(Token iden, std::share
 
     std::vector<Param> params;
     int i = 0;
+    bool isVarArg = false;
     while (tok.tokenType != TokenType::r_parent) {
         if (i > 0 && (tok.tokenType == TokenType::comma)) {
             Consume(TokenType::comma);
+        }
+
+        if (i > 0 && (tok.tokenType == TokenType::ellipse)) {
+            isVarArg = true;
+            Consume(TokenType::ellipse);
+            break;
         }
 
         auto ty = ParseDeclSpec();
@@ -222,7 +248,7 @@ std::shared_ptr<CType> Parser::DirectDeclaratorFuncSuffix(Token iden, std::share
 
     Consume(TokenType::r_parent);
 
-    return std::make_shared<CFuncType>(baseType, params, llvm::StringRef(iden.ptr, iden.len));
+    return std::make_shared<CFuncType>(baseType, params, llvm::StringRef(iden.ptr, iden.len), isVarArg);
 }
 
 std::shared_ptr<CType> Parser::DirectDeclaratorSuffix(Token iden, std::shared_ptr<CType> baseType, bool isGlobal) {
@@ -274,6 +300,48 @@ std::shared_ptr<AstNode> Parser::DirectDeclarator(std::shared_ptr<CType> baseTyp
     return declNode;
 }
 
+bool Parser::ParseStringInitializer(std::vector<std::shared_ptr<VariableDecl::InitValue>> &arr, std::shared_ptr<CType> declType, std::vector<int> &offsetList) {
+    CArrayType *arrTy = llvm::dyn_cast<CArrayType>(declType.get());
+    Token curTok = tok;
+    std::string strValue = tok.strVal;
+    Consume(TokenType::str);
+    if (arrTy->GetElementCount() < 0) {
+        arrTy->SetElementCount(strValue.size() + 1);
+    }
+    int i = 0, arrLen = arrTy->GetElementCount();
+    int slen = (int)strValue.size();
+
+    if (arrLen < slen) {
+        GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_large_length);
+    }    
+
+    if (arrLen > slen) {
+        for (; i < slen; ++i) {
+            auto node = sema.SemaNumberExprNode(curTok, strValue[i], CType::CharType);
+            offsetList.push_back(i);
+            auto initValue = sema.SemaDeclInitValue(arrTy->GetElementType(), node, offsetList, curTok);
+            offsetList.pop_back();
+            arr.push_back(initValue);
+        }
+        for (; i < arrLen; ++i) {
+            auto node = sema.SemaNumberExprNode(curTok, 0, CType::CharType);
+            offsetList.push_back(i);
+            auto initValue = sema.SemaDeclInitValue(arrTy->GetElementType(), node, offsetList, curTok);
+            offsetList.pop_back();
+            arr.push_back(initValue);
+        }
+    }else {
+        for (; i < slen; ++i) {
+            auto node = sema.SemaNumberExprNode(curTok, strValue[i], CType::CharType);
+            offsetList.push_back(i);
+            auto initValue = sema.SemaDeclInitValue(arrTy->GetElementType(), node, offsetList, curTok);
+            offsetList.pop_back();
+            arr.push_back(initValue);
+        }
+    }
+    return true;
+}
+
 bool Parser::ParseInitializer(std::vector<std::shared_ptr<VariableDecl::InitValue>> &arr, std::shared_ptr<CType> declType, std::vector<int> &offsetList, bool hasLBrace) {
     /// {}
     if (tok.tokenType == TokenType::r_brace) {
@@ -283,10 +351,18 @@ bool Parser::ParseInitializer(std::vector<std::shared_ptr<VariableDecl::InitValu
         }
         return true;
     }
+
+    if (IsStringArrayType(declType) && tok.tokenType == TokenType::str) {
+        return ParseStringInitializer(arr, declType, offsetList);
+    }
+
     if (tok.tokenType == TokenType::l_brace) {
         Consume(TokenType::l_brace);
 
-        if (declType->GetKind() == CType::TY_Array) {
+        if (IsStringArrayType(declType) && tok.tokenType == TokenType::str) {
+            ParseStringInitializer(arr, declType, offsetList);
+        }
+        else if (declType->GetKind() == CType::TY_Array) {
             CArrayType *arrType = llvm::dyn_cast<CArrayType>(declType.get());
             int size = arrType->GetElementCount();
             bool isFlex = size < 0 ? true : false;
@@ -450,6 +526,59 @@ std::shared_ptr<AstNode> Parser::ParseForStmt() {
     return node;
 }
 
+std::shared_ptr<AstNode> Parser::ParseWhileStmt() {
+    Consume(TokenType::kw_while);
+    Consume(TokenType::l_parent);
+
+    auto node = std::make_shared<ForStmt>();
+    
+    breakNodes.push_back(node);
+    continueNodes.push_back(node);
+
+    std::shared_ptr<AstNode> initNode = nullptr;
+    std::shared_ptr<AstNode> condNode = nullptr;
+    std::shared_ptr<AstNode> incNode = nullptr;
+    std::shared_ptr<AstNode> bodyNode = nullptr;
+
+    if (tok.tokenType != TokenType::r_parent) {
+        condNode = ParseExpr();
+    }
+
+    Consume(TokenType::r_parent);
+
+    bodyNode = ParseStmt();
+
+    node->initNode = initNode;
+    node->condNode = condNode;
+    node->incNode = incNode;
+    node->bodyNode = bodyNode;
+
+    breakNodes.pop_back();
+    continueNodes.pop_back();
+
+    return node;
+}
+
+std::shared_ptr<AstNode> Parser::ParseDoWhileStmt() {
+    Consume(TokenType::kw_do);
+    auto node = std::make_shared<DoWhileStmt>();
+
+    breakNodes.push_back(node);
+    continueNodes.push_back(node);
+
+    node->stmt = ParseStmt();
+
+    Consume(TokenType::kw_while);
+    Consume(TokenType::l_parent);
+    node->expr = ParseExpr();
+    Consume(TokenType::r_parent);
+    Consume(TokenType::semi);
+
+    breakNodes.pop_back();
+    continueNodes.pop_back();
+    return node;
+}
+
 std::shared_ptr<AstNode> Parser::ParseBreakStmt() {
     if (breakNodes.size() == 0) {
         GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_break_stmt);
@@ -479,6 +608,74 @@ std::shared_ptr<AstNode> Parser::ParseReturnStmt() {
         node->expr = ParseExpr();
     }
     Consume(TokenType::semi);
+    return node;
+}
+
+std::shared_ptr<AstNode> Parser::ParseSwitchStmt() {
+    auto node = std::make_shared<SwitchStmt>();
+    breakNodes.push_back(node);
+    switchNodes.push_back(node);
+
+    Consume(TokenType::kw_switch);
+    Consume(TokenType::l_parent);
+    node->expr = ParseExpr();
+    Consume(TokenType::r_parent);
+    node->stmt = ParseStmt();
+
+    breakNodes.pop_back();
+    switchNodes.pop_back();
+    return node;
+}
+
+std::shared_ptr<AstNode> Parser::ParseCaseStmt() {
+    if (switchNodes.size() == 0) {
+        GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_case_stmt);
+    }
+    Consume(TokenType::kw_case);
+    auto node = std::make_shared<CaseStmt>();
+    node->expr = ParseExpr();
+    Consume(TokenType::colon);
+    
+    /// 将两个case语句之间，使用 blockStmt 进行包裹
+    /// 是为了兼容两个case语句之间的多语句
+    auto blockStmt = std::make_shared<BlockStmt>();
+
+    while (tok.tokenType != TokenType::kw_case &&
+        tok.tokenType != TokenType::kw_default &&
+        tok.tokenType != TokenType::r_brace) {
+            auto node = ParseStmt();
+            if (node) {
+                blockStmt->nodeVec.push_back(node);
+            }
+    }
+
+    node->stmt = blockStmt;
+    return node;
+}
+
+std::shared_ptr<AstNode> Parser::ParseDefaultStmt() {
+    if (switchNodes.size() == 0) {
+        GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_default_stmt);
+    }
+    auto *switchStmt = llvm::dyn_cast<SwitchStmt>(switchNodes.back().get());
+    if (switchStmt->defaultStmt) {
+        GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_multi_default_stmt);
+    }
+    Consume(TokenType::kw_default);
+    Consume(TokenType::colon);
+    auto node = std::make_shared<DefaultStmt>();
+    auto blockStmt = std::make_shared<BlockStmt>();
+
+    /// 也是为了兼容 default 后面的多语句
+    while (tok.tokenType != TokenType::kw_case &&
+            tok.tokenType != TokenType::r_brace) {
+                auto stmt = ParseStmt();
+                if (stmt)
+                    blockStmt->nodeVec.push_back(stmt);
+            }
+    node->stmt = blockStmt;
+
+    switchStmt->defaultStmt = node;
     return node;
 }
 
@@ -714,9 +911,14 @@ std::shared_ptr<AstNode> Parser::ParsePrimary() {
         Advance();
         return expr;
     }
+    else if (tok.tokenType == TokenType::str) {
+        auto expr = sema.SemaStringExprNode(tok, tok.strVal, tok.ty);
+        Consume(TokenType::str);
+        return expr;
+    }
     else {
         Expect(TokenType::number);
-        auto factor = sema.SemaNumberExprNode(tok, tok.ty);
+        auto factor = sema.SemaNumberExprNode(tok, tok.value, tok.ty);
         Advance();
         return factor;
     }
@@ -897,6 +1099,8 @@ bool Parser::IsTypeName(TokenType tokenType) {
         return true;
     }else if (tokenType == TokenType::kw_void) {
         return true;
+    }else if (tokenType == TokenType::kw_char) {
+        return true;
     }
     return false;
 }
@@ -922,6 +1126,16 @@ bool Parser::IsFuncDecl() {
     return isFunc;
 }
 
+bool Parser::IsStringArrayType(std::shared_ptr<CType> ty) {
+    if (ty->GetKind() == CType::TY_Array) {
+        CArrayType *arrTy = llvm::dyn_cast<CArrayType>(ty.get());
+        if (arrTy->GetElementType()->GetKind() == CType::TY_Char) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool Parser::Expect(TokenType tokenType) {
     if (tok.tokenType == tokenType) {
         return true;
@@ -944,4 +1158,12 @@ bool Parser::Consume(TokenType tokenType) {
 
 void Parser::Advance() {
     lexer.NextToken(tok);
+}
+
+void Parser::ConsumeTypeQualify() {
+    while (tok.tokenType == TokenType::kw_const || 
+            tok.tokenType == TokenType::kw_volatile ||
+            tok.tokenType == TokenType::kw_static) {
+        Advance();
+    }
 }
