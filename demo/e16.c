@@ -3,7 +3,7 @@ int printf(const char *fmg, ...);
 int main ()
 {
    /* 局部变量定义 */
-   char grade = 'B';
+   char grade = 'E';
    int ret = grade;
    switch(grade)
    {
@@ -17,7 +17,7 @@ int main ()
    case 'C' : 
       ret += 1;
       printf("做得好\n" );
-      break;
+      // break;
    case 'D' : {
       printf("您通过了\n" );
       break;
@@ -26,10 +26,14 @@ int main ()
       printf("最好再试一下\n" );
       break;
    }
-   default : {
-      printf("无效的成绩\n" );
-      break;
-   }
+   // default : {
+   //    printf("无效的成绩\n" );
+   //    break;
+   // }
+   // default : {
+   //    printf("无效的成绩\n" );
+   //    break;
+   // }
    }
    printf("您的成绩是 %c\n", grade );
  

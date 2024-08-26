@@ -668,6 +668,7 @@ std::shared_ptr<AstNode> Parser::ParseDefaultStmt() {
 
     /// 也是为了兼容 default 后面的多语句
     while (tok.tokenType != TokenType::kw_case &&
+            tok.tokenType != TokenType::kw_default &&
             tok.tokenType != TokenType::r_brace) {
                 auto stmt = ParseStmt();
                 if (stmt)
