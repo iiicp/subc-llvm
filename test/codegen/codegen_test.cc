@@ -1091,3 +1091,60 @@ TEST(CodeGenTest, 2048) {
     )");
     ASSERT_EQ(res, true);
 }
+
+TEST(CodeGenTest, typedef1) {
+    bool res = TestProgramUseJit(R"(
+            typedef struct {
+                int a,b;
+            }Point;
+
+            int main() {
+                Point p = {1,2};
+                return p.a + p.b;
+            }
+    )",3);
+    ASSERT_EQ(res, true);
+}
+
+TEST(CodeGenTest, typedef_struct) {
+    bool res = TestProgramCheckModule(R"(
+        int printf(const char *fmg, ...);
+
+        typedef struct student
+        {
+            char name[20];
+            int  age;
+            float score;
+        }student_t, *student_ptr;
+        int main (void)
+        {
+            student_t   stu = {"wit", 20, 99};
+            student_t  *p1 = &stu;
+            student_ptr p2 = &stu;
+            printf ("name: %s\n", p1->name);
+            printf ("name: %s\n", p2->name); 
+            return 0;
+        }
+    )");
+    ASSERT_EQ(res, true);
+}
+
+TEST(CodeGenTest, c1) {
+    bool res = TestProgramUseJit(R"(
+        typedef int (*func_t)(int a, int b);
+
+        int printf(const char *fmg, ...);
+
+        int sum (int a, int b)
+        {
+            return a + b;
+        } 
+        int main (void)
+        {
+            func_t fp = sum;
+            printf ("%d\n", fp(1,2));
+            return fp(1,2);
+        }
+    )",3);
+    ASSERT_EQ(res, true);
+}

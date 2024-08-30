@@ -26,7 +26,12 @@ std::shared_ptr<Symbol> Scope::FindObjSymbolInCurEnv(llvm::StringRef name) {
     return nullptr;
 }
 void Scope::AddObjSymbol(std::shared_ptr<CType> ty, llvm::StringRef name) {
-    auto symbol = std::make_shared<Symbol>(SymbolKind::obj, ty, name);
+    auto symbol = std::make_shared<Symbol>(SymbolKind::kobj, ty, name);
+    envs.back()->objSymbolTable.insert({name, symbol});
+}
+
+void Scope::AddTypedefSymbol(std::shared_ptr<CType> ty, llvm::StringRef name) {
+    auto symbol = std::make_shared<Symbol>(SymbolKind::ktypedef, ty, name);
     envs.back()->objSymbolTable.insert({name, symbol});
 }
 
@@ -49,6 +54,6 @@ std::shared_ptr<Symbol> Scope::FindTagSymbolInCurEnv(llvm::StringRef name) {
 }
 
 void Scope::AddTagSymbol(std::shared_ptr<CType> ty, llvm::StringRef name) {
-    auto symbol = std::make_shared<Symbol>(SymbolKind::tag, ty, name);
+    auto symbol = std::make_shared<Symbol>(SymbolKind::ktag, ty, name);
     envs.back()->tagSymbolTable.insert({name, symbol});
 }

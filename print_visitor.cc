@@ -286,7 +286,11 @@ llvm::Value * PrintVisitor::VisitBinaryExpr(BinaryExpr *binaryExpr) {
 
 llvm::Value * PrintVisitor::VisitNumberExpr(NumberExpr *expr) {
 
-    *out << expr->value;
+    if (expr->ty->IsIntegerType()) {
+        *out << expr->value.v;
+    }else {
+        *out << expr->value.d;
+    }
 
     return nullptr;
 }

@@ -21,7 +21,7 @@ private:
     std::shared_ptr<AstNode> ParseStmt();
     std::shared_ptr<AstNode> ParseBlockStmt();
     std::shared_ptr<AstNode> ParseDeclStmt(bool isGlobal = false);
-    std::shared_ptr<CType> ParseDeclSpec();
+    std::shared_ptr<CType> ParseDeclSpec(bool &isTypedef);
     std::shared_ptr<CType> ParseStructOrUnionSpec();
     std::shared_ptr<AstNode> Declarator(std::shared_ptr<CType> baseType, bool isGlobal);
     std::shared_ptr<AstNode> DirectDeclarator(std::shared_ptr<CType> baseType, bool isGlobal);
@@ -29,7 +29,7 @@ private:
     std::shared_ptr<CType> DirectDeclaratorArraySuffix(std::shared_ptr<CType> baseType, bool isGlobal);
     std::shared_ptr<CType> DirectDeclaratorFuncSuffix(Token iden, std::shared_ptr<CType> baseType, bool isGlobal);
     bool ParseInitializer(std::vector<std::shared_ptr<VariableDecl::InitValue>> &arr, std::shared_ptr<CType> declType, std::vector<int> &offsetList, bool hasLBrace);
-    bool ParseStringInitializer(std::vector<std::shared_ptr<VariableDecl::InitValue>> &arr, std::shared_ptr<CType> declType, std::vector<int> &offsetList);
+    void ParseStringInitializer(std::vector<std::shared_ptr<VariableDecl::InitValue>> &arr, std::shared_ptr<CType> declType, std::vector<int> &offsetList);
 
     std::shared_ptr<AstNode> ParseIfStmt();
     std::shared_ptr<AstNode> ParseForStmt();
@@ -66,9 +66,10 @@ private:
     bool IsAssignOperator();
     bool IsUnaryOperator();
 
-    bool IsTypeName(TokenType tokenType);
+    bool IsTypeName(Token tok);
 
     bool IsFuncDecl();
+    bool IsFuncTypeNode(std::shared_ptr<AstNode> node);
 
     bool IsStringArrayType(std::shared_ptr<CType> ty);
 

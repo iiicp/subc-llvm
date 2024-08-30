@@ -513,7 +513,11 @@ public:
 
 class NumberExpr : public AstNode{
 public:
-    int value;
+    union {
+        int64_t v;
+        double d;
+    }value; // for number
+
     NumberExpr():AstNode(ND_NumberExpr){}
     llvm::Value * Accept(Visitor *v) override {
         return v->VisitNumberExpr(this);

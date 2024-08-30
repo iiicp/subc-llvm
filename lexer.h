@@ -4,6 +4,7 @@
 #include "type.h"
 #include "diag_engine.h"
 #include <string>
+#include <stack>
 
 /// char stream -> Token
 
@@ -68,9 +69,20 @@ enum class TokenType : uint8_t{
     kw_void,        // void
     kw_return,      // return
     kw_char,        // char
+    kw_short,       // short
+    kw_long,        // long
+    kw_float,       // float
+    kw_double,      // double
+    kw_signed,      // signed
+    kw_unsigned,    // unsigned
+    kw_typedef,     // typedef
     kw_const,       // const
     kw_volatile,    // volatile
     kw_static,      // static
+    kw_extern,      // extern
+    kw_auto,        // auto
+    kw_register,    // register
+    kw_inline,      // inline
     kw_while,       // while
     kw_do,          // do
     kw_switch,      // switch
@@ -85,7 +97,11 @@ public:
     TokenType tokenType;
     int row, col;
 
-    int value; // for number
+    union {
+        int64_t v;
+        double d;
+    }value; // for number
+
     std::string strVal; // for ""
     
     const char *ptr; // for debug && diag
@@ -130,6 +146,10 @@ public:
     }
 private:
     bool StartWith(const char *p);
+    bool StartWith(const char *source, const char *target);
+    const char *ConvertNumber(Token &tok, const char *start, const char *end);
+    std::pair<bool, const char *> ConvertIntNumber(Token &tok, const char *start, const char *end);
+    std::pair<bool, const char *> ConvertFloatNumber(Token &tok, const char *start, const char *end);
 private:
     const char *BufPtr;
     const char *LineHeadPtr;
@@ -143,5 +163,5 @@ private:
         int row;
     };
 
-    State state;
+    std::stack<State> stateStack;
 };

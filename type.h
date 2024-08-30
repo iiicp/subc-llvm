@@ -28,7 +28,18 @@ public:
     enum Kind {
         TY_Void,
         TY_Char,
+        TY_UChar,
+        TY_Short,
+        TY_UShort,
         TY_Int,
+        TY_UInt,
+        TY_Long,
+        TY_ULong,
+        TY_LLong,
+        TY_ULLong,
+        TY_Float,
+        TY_Double,
+        TY_LDouble,
         TY_Point,
         TY_Array,
         TY_Record,
@@ -38,8 +49,9 @@ protected:
     Kind kind;
     int size;       /// 字节数
     int align;      /// 对齐数
+    bool sign{true}; ///默认是有符号
 public:
-    CType(Kind kind, int size, int align):kind(kind), size(size), align(align) {}
+    CType(Kind kind, int size, int align, bool sign = true):kind(kind), size(size), align(align), sign(sign) {}
     virtual ~CType() {}
     const Kind GetKind() const {return kind;}
     const int GetSize() const {
@@ -48,25 +60,46 @@ public:
     const int GetAlign() const {
         return align;
     }
+
+    bool IsIntegerType();
+    bool IsFloatType();
+    bool IsArithType();
+
     virtual llvm::Type * Accept(TypeVisitor *v) {return nullptr;}
 
-    static std::shared_ptr<CType> IntType;
     static std::shared_ptr<CType> VoidType;
     static std::shared_ptr<CType> CharType;
+    static std::shared_ptr<CType> UCharType;
+    static std::shared_ptr<CType> ShortType;
+    static std::shared_ptr<CType> UShortType;
+    static std::shared_ptr<CType> IntType;
+    static std::shared_ptr<CType> UIntType;
+    static std::shared_ptr<CType> LongType;
+    static std::shared_ptr<CType> ULongType;
+    static std::shared_ptr<CType> LongLongType;
+    static std::shared_ptr<CType> ULongLongType;
+    static std::shared_ptr<CType> FloatType;
+    static std::shared_ptr<CType> DoubleType;
+    static std::shared_ptr<CType> LDoubleType;
 
     static llvm::StringRef GenAnonyRecordName(TagKind tagKind);
 };
 
 class CPrimaryType : public CType {
 public:
-    CPrimaryType(Kind kind, int size, int align):CType(kind, size, align) {}
+    CPrimaryType(Kind kind, int size, int align, bool sign):CType(kind, size, align, sign) {}
     
     llvm::Type * Accept(TypeVisitor *v) override {
         return v->VisitPrimaryType(this);
     }
     
     static bool classof(const CType *ty) {
-        return ty->GetKind() == TY_Int;
+        return (ty->GetKind() == TY_Char || ty->GetKind() == TY_UChar || 
+        ty->GetKind() == TY_Short || ty->GetKind() == TY_UShort ||
+        ty->GetKind() == TY_Int || ty->GetKind() == TY_UInt || 
+        ty->GetKind() == TY_Long || ty->GetKind() == TY_ULong || 
+        ty->GetKind() == TY_LLong || ty->GetKind() == TY_ULLong || 
+        ty->GetKind() == TY_Float || ty->GetKind() == TY_Double);
     }
 };
 

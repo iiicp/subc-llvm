@@ -1,0 +1,1 @@
+int main(){int a[3] = {1,101}; return a[1];}

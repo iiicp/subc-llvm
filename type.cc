@@ -1,8 +1,39 @@
 #include "type.h"
 
-std::shared_ptr<CType> CType::IntType = std::make_shared<CPrimaryType>(Kind::TY_Int, 4, 4);
-std::shared_ptr<CType> CType::VoidType = std::make_shared<CPrimaryType>(Kind::TY_Void, 0, 0);
-std::shared_ptr<CType> CType::CharType = std::make_shared<CPrimaryType>(Kind::TY_Char, 1, 1);
+std::shared_ptr<CType> CType::VoidType = std::make_shared<CPrimaryType>(Kind::TY_Void, 0, 0, true);
+std::shared_ptr<CType> CType::CharType = std::make_shared<CPrimaryType>(Kind::TY_Char, 1, 1, true);
+std::shared_ptr<CType> CType::UCharType = std::make_shared<CPrimaryType>(Kind::TY_UChar, 1, 1, false);
+std::shared_ptr<CType> CType::ShortType = std::make_shared<CPrimaryType>(Kind::TY_Short, 2, 2, true);
+std::shared_ptr<CType> CType::UShortType = std::make_shared<CPrimaryType>(Kind::TY_UShort, 2, 2, false);
+std::shared_ptr<CType> CType::IntType = std::make_shared<CPrimaryType>(Kind::TY_Int, 4, 4, true);
+std::shared_ptr<CType> CType::UIntType = std::make_shared<CPrimaryType>(Kind::TY_UInt, 4, 4, false);
+std::shared_ptr<CType> CType::LongType = std::make_shared<CPrimaryType>(Kind::TY_Long, 8, 8, true);
+std::shared_ptr<CType> CType::ULongType = std::make_shared<CPrimaryType>(Kind::TY_ULong, 8, 8, false);
+std::shared_ptr<CType> CType::LongLongType = std::make_shared<CPrimaryType>(Kind::TY_LLong, 8, 8, true);
+std::shared_ptr<CType> CType::ULongLongType = std::make_shared<CPrimaryType>(Kind::TY_ULLong, 8, 8, false);
+std::shared_ptr<CType> CType::FloatType = std::make_shared<CPrimaryType>(Kind::TY_Float, 4, 4, true);
+std::shared_ptr<CType> CType::DoubleType = std::make_shared<CPrimaryType>(Kind::TY_Double, 8, 8, true);
+std::shared_ptr<CType> CType::LDoubleType = std::make_shared<CPrimaryType>(Kind::TY_LDouble, 8, 8, true);
+
+
+bool CType::IsIntegerType() {
+    if (kind == TY_Char || kind == TY_UChar || kind == TY_Short || kind == TY_UShort ||
+        kind == TY_Int || kind == TY_UInt || kind == TY_Long || kind == TY_ULong || 
+        kind == TY_LLong || kind == TY_ULLong) {
+            return true;
+        }
+    return false;
+}
+
+bool CType::IsFloatType() {
+    if (kind == TY_Float || kind == TY_Double || kind == TY_LDouble)
+        return true;
+    return false;
+}
+
+bool CType::IsArithType() {
+    return IsIntegerType() || IsFloatType();
+}
 
 llvm::StringRef CType::GenAnonyRecordName(TagKind tagKind) {
     static long long idx = 0;

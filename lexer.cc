@@ -1,4 +1,5 @@
 #include "lexer.h"
+#include <cstring>
 
 llvm::StringRef Token::GetSpellingText(TokenType tokenType) {
     switch (tokenType)
@@ -139,6 +140,28 @@ llvm::StringRef Token::GetSpellingText(TokenType tokenType) {
         return "case";
     case TokenType::kw_default:
         return "default";
+    case TokenType::kw_short:
+        return "short";
+    case TokenType::kw_long:
+        return "long";
+    case TokenType::kw_float:
+        return "float";
+    case TokenType::kw_double:
+        return "double";
+    case TokenType::kw_signed:
+        return "signed";
+    case TokenType::kw_unsigned:
+        return "unsigned";
+    case TokenType::kw_typedef:
+        return "typedef";
+    case TokenType::kw_extern:
+        return "extern";
+    case TokenType::kw_auto:
+        return "auto";
+    case TokenType::kw_register:
+        return "register";
+    case TokenType::kw_inline:
+        return "inline";
     default:
         llvm::llvm_unreachable_internal();
     }
@@ -212,6 +235,10 @@ bool Lexer::StartWith(const char *p) {
     return !strncmp(BufPtr, p, strlen(p));
 }
 
+bool Lexer::StartWith(const char *source, const char *target) {
+    return !strncmp(source, target, strlen(target));
+}
+
 void Lexer::NextToken(Token &tok) {
     
     /// 1. 过滤空格 
@@ -260,7 +287,7 @@ void Lexer::NextToken(Token &tok) {
         tok.tokenType = TokenType::number;
         tok.ty = CType::IntType;
         tok.ptr = BufPtr++;
-        BufPtr = c_char(&tok.value, BufPtr);
+        BufPtr = c_char((int *)&tok.value.v, BufPtr);
         if (*BufPtr != '\'')
             diagEngine.Report(llvm::SMLoc::getFromPointer(BufPtr), diag::err_unclosed_character);
         BufPtr += 1;
@@ -284,28 +311,19 @@ void Lexer::NextToken(Token &tok) {
         tok.strVal = value;
         tok.ty = std::make_shared<CArrayType>(CType::CharType, tok.len);
     }
-    else if (StartWith("0x") || StartWith("0X")) {
-        BufPtr += 2;
-        int number = 0;
-        while (IsHexDigit(*BufPtr)) {
-            number = number * 16 + (*BufPtr++ - '0');
+    else if (StartWith("0x") || StartWith("0X") || 
+            StartWith("0b") || StartWith("0B")  ||
+            IsDigit(*BufPtr) || (*BufPtr == '.' && IsDigit(BufPtr[1]))) {
+        char *p = (char *)BufPtr;
+        for (;;) {
+            if (p[0] && p[1] && strchr("eEpP", p[0]) && strchr("+-", p[1]))
+                p += 2;
+            else if (isalnum(*p) || *p == '.')
+                p++;
+            else
+                break;
         }
-        tok.tokenType = TokenType::number;
-        tok.value = number;
-        tok.ty = CType::IntType;
-        tok.ptr = StartPtr;
-        tok.len = BufPtr - StartPtr;
-    }
-    else if (IsDigit(*BufPtr)) {
-        int number = 0;
-        while (IsDigit(*BufPtr)) {
-            number = number * 10 + (*BufPtr++ - '0');
-        }
-        tok.tokenType = TokenType::number;
-        tok.value = number;
-        tok.ty = CType::IntType;
-        tok.ptr = StartPtr;
-        tok.len = BufPtr - StartPtr;
+        BufPtr = ConvertNumber(tok, StartPtr, p);
     } else if (IsLetter(*BufPtr)) {
         while (IsLetter(*BufPtr) || IsDigit(*BufPtr)) {
             BufPtr++;
@@ -354,6 +372,28 @@ void Lexer::NextToken(Token &tok) {
             tok.tokenType = TokenType::kw_case;
         }else if (text == "default") {
             tok.tokenType = TokenType::kw_default;
+        }else if (text == "short") {
+            tok.tokenType = TokenType::kw_short;
+        }else if (text == "long") {
+            tok.tokenType = TokenType::kw_long;
+        }else if (text == "float") {
+            tok.tokenType = TokenType::kw_float;
+        }else if (text == "double") {
+            tok.tokenType = TokenType::kw_double;
+        }else if (text == "signed") {
+            tok.tokenType = TokenType::kw_signed;
+        }else if (text == "unsigned") {
+            tok.tokenType = TokenType::kw_unsigned;
+        }else if (text == "typedef") {
+            tok.tokenType = TokenType::kw_typedef;
+        }else if (text == "auto") {
+            tok.tokenType = TokenType::kw_auto;
+        }else if (text == "extern") {
+            tok.tokenType = TokenType::kw_extern;
+        }else if (text == "register") {
+            tok.tokenType = TokenType::kw_register;
+        }else if (text == "inline") {
+            tok.tokenType = TokenType::kw_inline;
         }
     }
     else {
@@ -678,14 +718,134 @@ void Lexer::NextToken(Token &tok) {
     }
 }
 
+const char * Lexer::ConvertNumber(Token &tok, const char *start, const char *end) {
+    const auto &[res, endptr] = ConvertIntNumber(tok, start, end);
+    if (res) {
+        return endptr;
+    }
+    return ConvertFloatNumber(tok, start, end).second;
+}
+
+std::pair<bool, const char *> Lexer::ConvertIntNumber(Token &tok, const char *start, const char *end) {
+  // Read a binary, octal, decimal or hexadecimal number.
+  char *p = (char *)start;
+  int base = 10;
+  if (!strncasecmp(p, "0x", 2) && isxdigit(p[2])) {
+    p += 2;
+    base = 16;
+  } else if (!strncasecmp(p, "0b", 2) && (p[2] == '0' || p[2] == '1')) {
+    p += 2;
+    base = 2;
+  } else if (*p == '0') {
+    base = 8;
+  }
+
+  int64_t val = strtoul(p, &p, base);
+
+  // Read U, L or LL suffixes.
+  bool l = false;
+  bool u = false;
+
+  if (StartWith(p, "LLU") || StartWith(p, "LLu") ||
+      StartWith(p, "llU") || StartWith(p, "llu") ||
+      StartWith(p, "ULL") || StartWith(p, "Ull") ||
+      StartWith(p, "uLL") || StartWith(p, "ull")) {
+    p += 3;
+    l = u = true;
+  } else if (!strncasecmp(p, "lu", 2) || !strncasecmp(p, "ul", 2)) {
+    p += 2;
+    l = u = true;
+  } else if (StartWith(p, "LL") || StartWith(p, "ll")) {
+    p += 2;
+    l = true;
+  } else if (*p == 'L' || *p == 'l') {
+    p++;
+    l = true;
+  } else if (*p == 'U' || *p == 'u') {
+    p++;
+    u = true;
+  }
+
+  if (p != end)
+    return {false, p};
+
+  // Infer a type.
+  std::shared_ptr<CType> ty;
+  if (base == 10) {
+    if (l && u)
+      ty = CType::ULongType;//ty_ulong;
+    else if (l)
+      ty = CType::LongType;//ty_long;
+    else if (u)
+      ty = (val >> 32) ? CType::ULongType : CType::UIntType;
+    else
+      ty = (val >> 31) ? CType::LongType : CType::IntType;
+  } else {
+    if (l && u)
+      ty = CType::ULongType;
+    else if (l)
+      ty = (val >> 63) ? CType::ULongType : CType::LongType;
+    else if (u)
+      ty = (val >> 32) ? CType::ULongType : CType::UIntType;
+    else if (val >> 63)
+      ty = CType::ULongType;
+    else if (val >> 32)
+      ty = CType::LongType;
+    else if (val >> 31)
+      ty = CType::UIntType;
+    else
+      ty = CType::IntType;
+  }
+
+  tok.tokenType = TokenType::number;
+  tok.ty = ty;
+  tok.ptr = start;
+  tok.len = end - start;
+  tok.value.v = val;
+  return {true, end};
+}
+
+std::pair<bool, const char *> Lexer::ConvertFloatNumber(Token &tok, const char *pstart, const char *pend) {
+  // If it's not an integer, it must be a floating point constant.
+  char *end;
+  long double val = strtold(pstart, &end);
+
+  std::shared_ptr<CType> ty;
+  if (*end == 'f' || *end == 'F') {
+    ty = CType::FloatType;
+    end++;
+  } else if (*end == 'l' || *end == 'L') {
+    ty = CType::LDoubleType;
+    end++;
+  } else {
+    ty = CType::DoubleType;
+  }
+
+  if (pend != end) {
+    diagEngine.Report(llvm::SMLoc::getFromPointer(end), diag::err_numeric_constant);
+    return {false, end};
+  }
+
+  tok.tokenType = TokenType::number;
+  tok.value.d = val;
+  tok.ty = ty;
+  tok.ptr = pstart;
+  tok.len = pend - pstart;
+  return {true, pend};
+}
+
 void Lexer::SaveState() {
+    State state;
     state.BufPtr = BufPtr;
     state.LineHeadPtr = LineHeadPtr;
     state.BufEnd = BufEnd;
     state.row = row;
+    stateStack.push(state);
 }
 
 void Lexer::RestoreState() {
+    State state = stateStack.top();
+    stateStack.pop();
     BufPtr = state.BufPtr;
     LineHeadPtr = state.LineHeadPtr;
     BufEnd = state.BufEnd;

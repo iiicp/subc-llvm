@@ -2,6 +2,7 @@
 #include "scope.h"
 #include "ast.h"
 #include "diag_engine.h"
+#include <stack>
 class Sema {
 public:
     enum class Mode {
@@ -11,10 +12,13 @@ public:
 private:
     DiagEngine &diagEngine;
 public:
-    Sema(DiagEngine &diagEngine):diagEngine(diagEngine) {}
+    Sema(DiagEngine &diagEngine):diagEngine(diagEngine) {
+        modeStack.push(Mode::Normal);
+    }
     std::shared_ptr<AstNode> SemaVariableDeclNode(Token tok, std::shared_ptr<CType> ty, bool isGlobal);
     std::shared_ptr<AstNode> SemaVariableAccessNode(Token tok);
     std::shared_ptr<AstNode> SemaNumberExprNode(Token tok, int val, std::shared_ptr<CType> ty);
+    std::shared_ptr<AstNode> SemaNumberExprNode(Token tok, std::shared_ptr<CType> ty);
     std::shared_ptr<AstNode> SemaStringExprNode(Token tok, std::string val, std::shared_ptr<CType> ty);
     std::shared_ptr<AstNode> SemaBinaryExprNode( std::shared_ptr<AstNode> left,std::shared_ptr<AstNode> right, BinaryOp op);
 
@@ -39,10 +43,16 @@ public:
     std::shared_ptr<AstNode> SemaFuncDecl(Token tok, std::shared_ptr<CType> type, std::shared_ptr<AstNode> blockStmt);
     std::shared_ptr<AstNode> SemaFuncCall(std::shared_ptr<AstNode> left, const std::vector<std::shared_ptr<AstNode>> &args);
 
+    void SemaTypedefDecl(std::shared_ptr<CType> type, Token tok);
+    std::shared_ptr<CType> SemaTypedefAccess(Token tok);
+
     void EnterScope();
     void ExitScope();
     void SetMode(Mode mode);
+    void UnSetMode();
 private:
     Scope scope;
-    Mode mode{Mode::Normal};
+    std::stack<Mode> modeStack;
+
+    Mode GetMode();
 };

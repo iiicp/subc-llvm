@@ -20,20 +20,29 @@ std::shared_ptr<Program> Parser::ParseProgram() {
 }
 
 std::shared_ptr<AstNode> Parser::ParseFuncDecl() {
-    auto baseType = ParseDeclSpec();
+    bool isTypedef = false;
+    auto baseType = ParseDeclSpec(isTypedef);
 
+    /// 此处的作用域是为了 函数的参数 和 函数的body
     sema.EnterScope();
     auto node = Declarator(baseType, true);
 
-    std::shared_ptr<AstNode> blockStmt = nullptr;
-    if (tok.tokenType != TokenType::semi) {
-        blockStmt = ParseBlockStmt();
-    }else {
+    /// 是否是 typedef 的函数声明
+    if (isTypedef) {
         Consume(TokenType::semi);
+        sema.ExitScope();
+        sema.SemaTypedefDecl(node->ty, node->tok);
+        return nullptr;
+    } else {
+        std::shared_ptr<AstNode> blockStmt = nullptr;
+        if (tok.tokenType != TokenType::semi) {
+            blockStmt = ParseBlockStmt();
+        }else {
+            Consume(TokenType::semi);
+        }
+        sema.ExitScope();
+        return sema.SemaFuncDecl(node->tok, node->ty, blockStmt);
     }
-    sema.ExitScope();
-
-    return sema.SemaFuncDecl(node->tok, node->ty, blockStmt);
 }
 
 std::shared_ptr<AstNode> Parser::ParseStmt() {
@@ -43,7 +52,7 @@ std::shared_ptr<AstNode> Parser::ParseStmt() {
         return nullptr;
     }
     /// decl stmt
-    if (IsTypeName(tok.tokenType)) {
+    if (IsTypeName(tok)) {
         return ParseDeclStmt();
     }
     /// if stmt
@@ -108,22 +117,115 @@ std::shared_ptr<AstNode> Parser::ParseBlockStmt() {
     return blockStmt;
 }
 
-std::shared_ptr<CType> Parser::ParseDeclSpec() {
-    ConsumeTypeQualify();
-    if (tok.tokenType == TokenType::kw_int) {
-        Consume(TokenType::kw_int);
-        return CType::IntType;
-    }else if (tok.tokenType == TokenType::kw_struct || tok.tokenType == TokenType::kw_union) {
-        return ParseStructOrUnionSpec();
-    }else if (tok.tokenType == TokenType::kw_void) {
-        Consume(TokenType::kw_void);
-        return CType::VoidType;
-    }else if (tok.tokenType == TokenType::kw_char) {
-        Consume(TokenType::kw_char);
-        return CType::CharType;
+std::shared_ptr<CType> Parser::ParseDeclSpec(bool &isTypedef) {
+    if (!IsTypeName(tok)) {
+        GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_type);
     }
+
+    enum { kkindUnused = 0, kvoid = 1, kchar, kint, kfloat, kdouble } kind = {kkindUnused};
+    enum { ksizeUnused = 0, kshort = 1, klong, kllong } size = {ksizeUnused};
+    enum { ksignedUnused = 0, ksigned = 1, kunsigned } sig = {ksignedUnused};
+    enum { ksclassUnused = 0, kTypedef = 1, kExtern, kStatic, kAuto, kRegister} sclass = {ksclassUnused};
+
+    std::shared_ptr<CType> usertype = NULL;
+    std::shared_ptr<CType> ty;
+    for (;;) {
+        if (tok.tokenType == TokenType::eof) {
+            assert(0 && "end of input");
+        }
+        /// 判断是否是typedef的类型
+        if (kind == kkindUnused && !usertype && tok.tokenType == TokenType::identifier) {
+            std::shared_ptr<CType> def = sema.SemaTypedefAccess(tok);
+            if (def) {
+                usertype = def;
+                Advance();
+                goto errcheck;
+            }
+        }
+
+        switch (tok.tokenType)
+        {
+            case TokenType::kw_typedef: {
+                if (sclass) 
+                    goto err; 
+                sclass = kTypedef; 
+                isTypedef = true; 
+                Advance();
+                break;
+            }
+            case TokenType::kw_extern:  if (sclass) goto err; sclass = kExtern; Advance(); break;
+            case TokenType::kw_static:  if (sclass) goto err; sclass = kStatic; Advance(); break;
+            case TokenType::kw_auto:  if (sclass) goto err; sclass = kAuto; Advance(); break;
+            case TokenType::kw_register:  if (sclass) goto err; sclass = kRegister; Advance();break;
+            case TokenType::kw_const: Advance(); break;
+            case TokenType::kw_volatile: Advance();break;
+            case TokenType::kw_inline: Advance(); break;
+            case TokenType::kw_void: if (kind) goto err; kind = kvoid; Advance();break;
+            case TokenType::kw_char: if (kind) goto err; kind = kchar; Advance();break;
+            case TokenType::kw_int: {
+                if (kind) goto err; 
+                kind = kint; 
+                Advance();
+                break;
+            }
+            case TokenType::kw_float: if (kind) goto err; kind = kfloat; Advance();break;
+            case TokenType::kw_double: if (kind) goto err; kind = kdouble; Advance();break;
+            case TokenType::kw_signed: if (sig) goto err; sig = ksigned; Advance();break;
+            case TokenType::kw_unsigned: if (sig) goto err; sig = kunsigned; Advance();break;
+            case TokenType::kw_short: if (size) goto err; size = kshort; Advance();break;
+            case TokenType::kw_long: {
+                if (size == ksizeUnused)  {
+                    size = klong;
+                    Advance();
+                }
+                else if (size == klong) {
+                    size = kllong;
+                    Advance();
+                }
+                else goto err;
+                break;
+            }
+            case TokenType::kw_struct: 
+            case TokenType::kw_union:
+                if (usertype) goto err;
+                usertype = ParseStructOrUnionSpec();
+                break;
+            default:
+                goto done;
+        }
+        errcheck:
+            if (size == kshort && (kind != 0 && kind != kint))
+                goto err;
+            if (size == klong && (kind != 0 && kind != kint && kind != kdouble))
+                goto err;
+            if (sig != 0 && (kind == kvoid || kind == kfloat || kind == kdouble))
+                goto err;
+            if (usertype && (kind != 0 || size != 0 || sig != 0))
+                goto err;
+    }
+done:
+    if (usertype) {
+        return usertype;
+    }
+    
+    switch (kind) {
+        case kvoid:   ty = CType::VoidType; goto end;
+        case kchar:   ty = CType::CharType; goto end;
+        case kfloat:  ty = CType::FloatType; goto end;
+        case kdouble: ty = (size == klong) ? CType::LDoubleType : CType::DoubleType; goto end;
+        default: break;
+    }
+    switch (size) {
+        case kshort: ty = sig == kunsigned ? CType::UShortType : CType::ShortType; goto end;
+        case klong:  ty = sig == kunsigned ? CType::ULongType : CType::LongType; goto end;
+        case kllong: ty = sig == kunsigned ? CType::ULongLongType : CType::LongLongType; goto end;
+        default:     ty = sig == kunsigned ? CType::UIntType : CType::IntType; goto end;
+    }
+ end:
+    return ty;
+ err:
     GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_type);
-    return nullptr;
+    return ty;
 }
 
 std::shared_ptr<CType> Parser::ParseStructOrUnionSpec() {
@@ -207,7 +309,10 @@ std::shared_ptr<CType> Parser::DirectDeclaratorArraySuffix(std::shared_ptr<CType
     int count = -1;
     if (tok.tokenType != TokenType::r_bracket) {
         Expect(TokenType::number);
-        count = tok.value;
+        if (!tok.ty->IsIntegerType()) {
+            GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_expected_ex, "integer type");
+        }
+        count = tok.value.v;
         Consume(TokenType::number);
     }
     Consume(TokenType::r_bracket);
@@ -225,13 +330,19 @@ std::shared_ptr<CType> Parser::DirectDeclaratorFuncSuffix(Token iden, std::share
             Consume(TokenType::comma);
         }
 
+        if (tok.tokenType == TokenType::kw_void) {
+            Consume(TokenType::kw_void);
+            break;
+        }
+
         if (i > 0 && (tok.tokenType == TokenType::ellipse)) {
             isVarArg = true;
             Consume(TokenType::ellipse);
             break;
         }
 
-        auto ty = ParseDeclSpec();
+        bool isTypedef = false;
+        auto ty = ParseDeclSpec(isTypedef);
         auto node = Declarator(ty, isGlobal);
 
         Param p;
@@ -266,15 +377,15 @@ std::shared_ptr<AstNode> Parser::DirectDeclarator(std::shared_ptr<CType> baseTyp
     if (tok.tokenType == TokenType::l_parent) {
         Token beginTok = tok;
         lexer.SaveState();
-            sema.SetMode(Sema::Mode::Skip);
-            Consume(TokenType::l_parent);
-            Declarator(CType::IntType, isGlobal);
-            Consume(TokenType::r_parent);
-            
-            baseType = DirectDeclaratorSuffix(tok, baseType, isGlobal); 
+        sema.SetMode(Sema::Mode::Skip);
+        Consume(TokenType::l_parent);
+        Declarator(CType::IntType, isGlobal);
+        Consume(TokenType::r_parent);
+
+        baseType = DirectDeclaratorSuffix(tok, baseType, isGlobal); 
 
         lexer.RestoreState();
-        sema.SetMode(Sema::Mode::Normal);
+        sema.UnSetMode();
         tok = beginTok;
 
         Consume(TokenType::l_parent);
@@ -295,12 +406,12 @@ std::shared_ptr<AstNode> Parser::DirectDeclarator(std::shared_ptr<CType> baseTyp
         VariableDecl*varDecl = llvm::dyn_cast<VariableDecl>(declNode.get());
         // varDecl->init = ParseAssignExpr();
         std::vector<int> offsetList{0}; /// 0表示访问首元素
-        ParseInitializer(varDecl->initValues, declNode->ty, offsetList, false);
+        ParseInitializer(varDecl->initValues, declNode->ty, offsetList, tok.tokenType == TokenType::l_brace);
     }
     return declNode;
 }
 
-bool Parser::ParseStringInitializer(std::vector<std::shared_ptr<VariableDecl::InitValue>> &arr, std::shared_ptr<CType> declType, std::vector<int> &offsetList) {
+void Parser::ParseStringInitializer(std::vector<std::shared_ptr<VariableDecl::InitValue>> &arr, std::shared_ptr<CType> declType, std::vector<int> &offsetList) {
     CArrayType *arrTy = llvm::dyn_cast<CArrayType>(declType.get());
     Token curTok = tok;
     std::string strValue = tok.strVal;
@@ -339,7 +450,6 @@ bool Parser::ParseStringInitializer(std::vector<std::shared_ptr<VariableDecl::In
             arr.push_back(initValue);
         }
     }
-    return true;
 }
 
 bool Parser::ParseInitializer(std::vector<std::shared_ptr<VariableDecl::InitValue>> &arr, std::shared_ptr<CType> declType, std::vector<int> &offsetList, bool hasLBrace) {
@@ -353,7 +463,8 @@ bool Parser::ParseInitializer(std::vector<std::shared_ptr<VariableDecl::InitValu
     }
 
     if (IsStringArrayType(declType) && tok.tokenType == TokenType::str) {
-        return ParseStringInitializer(arr, declType, offsetList);
+        ParseStringInitializer(arr, declType, offsetList);
+        return false;
     }
 
     if (tok.tokenType == TokenType::l_brace) {
@@ -408,7 +519,9 @@ bool Parser::ParseInitializer(std::vector<std::shared_ptr<VariableDecl::InitValu
                 }
             }
         }
-        Consume(TokenType::r_brace);
+        if (hasLBrace) {
+            Consume(TokenType::r_brace);
+        }
     }else {
         Token tmp = tok;
         // assign
@@ -430,7 +543,8 @@ std::shared_ptr<AstNode> Parser::Declarator(std::shared_ptr<CType> baseType, boo
 
 std::shared_ptr<AstNode> Parser::ParseDeclStmt(bool isGlobal) {
     
-    auto baseTy = ParseDeclSpec();
+    bool isTypedef = false;
+    auto baseTy = ParseDeclSpec(isTypedef);
 
     /// int ;
     /// 无意义的声明
@@ -439,21 +553,41 @@ std::shared_ptr<AstNode> Parser::ParseDeclStmt(bool isGlobal) {
         return nullptr;
     }
 
-    auto decl = std::make_shared<DeclStmt>();
-    /// int a,b=3;
-    /// a,b=3; 
-    
-    int i = 0;
-    while (tok.tokenType != TokenType::semi) {
-        if (i++ > 0) {
-            assert(Consume(TokenType::comma));
+    if (isTypedef) {
+        int i = 0;
+        
+        while (tok.tokenType != TokenType::semi) {
+            if (i++ > 0) {
+                assert(Consume(TokenType::comma));
+            }
+            sema.SetMode(Sema::Mode::Skip);
+            auto node = Declarator(baseTy, isGlobal);
+            sema.UnSetMode();
+
+            sema.SemaTypedefDecl(node->ty, node->tok);
         }
-        decl->nodeVec.push_back(Declarator(baseTy, isGlobal));
+
+        Consume(TokenType::semi);
+
+        return nullptr;
+
+    }else {
+        auto decl = std::make_shared<DeclStmt>();
+        /// int a,b=3;
+        /// a,b=3; 
+    
+        int i = 0;
+        while (tok.tokenType != TokenType::semi) {
+            if (i++ > 0) {
+                assert(Consume(TokenType::comma));
+            }
+            decl->nodeVec.push_back(Declarator(baseTy, isGlobal));
+        }
+
+        Consume(TokenType::semi);
+
+        return decl;
     }
-
-    Consume(TokenType::semi);
-
-    return decl;
 }
 
 std::shared_ptr<AstNode> Parser::ParseExprStmt() {
@@ -493,7 +627,7 @@ std::shared_ptr<AstNode> Parser::ParseForStmt() {
     std::shared_ptr<AstNode> incNode = nullptr;
     std::shared_ptr<AstNode> bodyNode = nullptr;
 
-    if (IsTypeName(tok.tokenType)) {
+    if (IsTypeName(tok)) {
         initNode = ParseDeclStmt();
     }else {
         if (tok.tokenType != TokenType::semi) {
@@ -782,7 +916,7 @@ std::shared_ptr<AstNode> Parser::ParseUnaryExpr() {
             lexer.SaveState();
             Token nextTok;
             lexer.NextToken(nextTok);
-            if (IsTypeName(nextTok.tokenType)) {
+            if (IsTypeName(nextTok)) {
                 isTypeName = true;
             }
             lexer.RestoreState();
@@ -919,7 +1053,7 @@ std::shared_ptr<AstNode> Parser::ParsePrimary() {
     }
     else {
         Expect(TokenType::number);
-        auto factor = sema.SemaNumberExprNode(tok, tok.value, tok.ty);
+        auto factor = sema.SemaNumberExprNode(tok, tok.ty);
         Advance();
         return factor;
     }
@@ -1080,7 +1214,8 @@ bool Parser::IsUnaryOperator() {
 
 /// @brief  sizeof (int* [5][6]);
 std::shared_ptr<CType> Parser::ParseType() {
-    std::shared_ptr<CType> baseType = ParseDeclSpec();
+    bool isTypedef = false;
+    std::shared_ptr<CType> baseType = ParseDeclSpec(isTypedef);
     assert(baseType);
 
     while (tok.tokenType == TokenType::star) {
@@ -1093,15 +1228,34 @@ std::shared_ptr<CType> Parser::ParseType() {
     return baseType;
 }
 
-bool Parser::IsTypeName(TokenType tokenType) {
-    if (tokenType == TokenType::kw_int) {
+bool Parser::IsTypeName(Token tok) {
+    TokenType tokenType = tok.tokenType;
+    if (tokenType == TokenType::kw_void ||
+        tokenType == TokenType::kw_char ||
+        tokenType == TokenType::kw_short ||
+        tokenType == TokenType::kw_int ||  
+        tokenType == TokenType::kw_long || 
+        tokenType == TokenType::kw_float ||
+        tokenType == TokenType::kw_double ||
+        tokenType == TokenType::kw_signed ||
+        tokenType == TokenType::kw_static ||
+        tokenType == TokenType::kw_extern ||
+        tokenType == TokenType::kw_auto ||
+        tokenType == TokenType::kw_register ||
+        tokenType == TokenType::kw_typedef ||
+        tokenType == TokenType::kw_const ||
+        tokenType == TokenType::kw_volatile ||
+        tokenType == TokenType::kw_inline ||
+        tokenType == TokenType::kw_unsigned ||
+        tokenType == TokenType::kw_typedef || 
+        tokenType == TokenType::kw_struct || 
+        tokenType == TokenType::kw_union ) {
         return true;
-    }else if (tokenType == TokenType::kw_struct || tokenType == TokenType::kw_union) {
-        return true;
-    }else if (tokenType == TokenType::kw_void) {
-        return true;
-    }else if (tokenType == TokenType::kw_char) {
-        return true;
+    }
+    else if (tokenType == TokenType::identifier) {
+        if (sema.SemaTypedefAccess(tok) != nullptr) {
+            return true;
+        }
     }
     return false;
 }
@@ -1111,20 +1265,41 @@ bool Parser::IsFuncDecl() {
     bool isFunc = false;
     Token begin = tok;
     lexer.SaveState();
-
-    auto baseType = ParseDeclSpec();
+    bool isTypedef = false;
+    auto baseType = ParseDeclSpec(isTypedef);
     if (tok.tokenType == TokenType::semi) {
         isFunc = false;
     }else {
         auto node = Declarator(baseType, true);
-        if (node->ty->GetKind() == CType::TY_Func) {
-            isFunc = true;
-        }
+        isFunc = IsFuncTypeNode(node);
     }
     lexer.RestoreState();
     tok = begin;
-    sema.SetMode(Sema::Mode::Normal);
+    sema.UnSetMode();
     return isFunc;
+}
+
+bool Parser::IsFuncTypeNode(std::shared_ptr<AstNode> node) {
+    if (node->ty->GetKind() == CType::TY_Func) {
+        return true;
+    }
+    CType *ty = node->ty.get();
+    while (ty->GetKind() == CType::TY_Point) {
+        CPointType *pty = llvm::dyn_cast<CPointType>(ty);
+        
+        if (pty->GetBaseType()->GetKind() == CType::TY_Point) {
+            ty = pty->GetBaseType().get(); 
+            continue;
+        }
+
+        if (pty->GetBaseType()->GetKind() == CType::TY_Func) {
+            return true;
+        }
+
+        break;
+    }
+
+    return false;
 }
 
 bool Parser::IsStringArrayType(std::shared_ptr<CType> ty) {
