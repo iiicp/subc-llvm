@@ -922,6 +922,13 @@ llvm::Value * CodeGen::VisitUnaryExpr(UnaryExpr *expr) {
     return nullptr;
 }
 
+llvm::Value * CodeGen::VisitCastExpr(CastExpr *expr) {
+    llvm::Type *ty = expr->targetType->Accept(this);
+    llvm::Value *val = expr->node->Accept(this);
+    AssignCastValue(val, ty);
+    return val;
+}
+
 llvm::Value * CodeGen::VisitSizeOfExpr(SizeOfExpr *expr) {
 
     std::shared_ptr<CType> ty = nullptr;

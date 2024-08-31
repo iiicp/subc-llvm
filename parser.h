@@ -57,6 +57,7 @@ private:
     std::shared_ptr<AstNode> ParseRelationalExpr();
     std::shared_ptr<AstNode> ParseAddExpr();
     std::shared_ptr<AstNode> ParseMultiExpr();
+    std::shared_ptr<AstNode> ParseCastExpr();
     std::shared_ptr<AstNode> ParseUnaryExpr();
     std::shared_ptr<AstNode> ParsePostFixExpr();
     std::shared_ptr<AstNode> ParsePrimary();

@@ -10,6 +10,7 @@ class VariableDecl;
 class FuncDecl;
 class BinaryExpr;
 class ThreeExpr;
+class CastExpr;
 class UnaryExpr;
 class SizeOfExpr;
 class PostIncExpr;
@@ -54,6 +55,7 @@ public:
     virtual llvm::Value * VisitStringExpr(StringExpr *expr) = 0;
     virtual llvm::Value * VisitBinaryExpr(BinaryExpr *binaryExpr) = 0;
     virtual llvm::Value * VisitUnaryExpr(UnaryExpr *expr) = 0;
+    virtual llvm::Value * VisitCastExpr(CastExpr *expr) = 0;
     virtual llvm::Value * VisitSizeOfExpr(SizeOfExpr *expr) = 0;
     virtual llvm::Value * VisitPostIncExpr(PostIncExpr *expr) = 0;
     virtual llvm::Value * VisitPostDecExpr(PostDecExpr *expr) = 0;
@@ -85,6 +87,7 @@ public:
         ND_BinaryExpr,
         ND_ThreeExpr,
         ND_UnaryExpr,
+        ND_CastExpr,
         ND_SizeOfExpr,
         ND_PostIncExpr,
         ND_PostDecExpr,
@@ -411,6 +414,21 @@ public:
 
     static bool classof(const AstNode *node) {
         return node->GetKind() == ND_UnaryExpr;
+    }
+};
+
+class CastExpr : public AstNode {
+public:
+    std::shared_ptr<CType> targetType;
+    std::shared_ptr<AstNode> node;
+
+    CastExpr() : AstNode(ND_CastExpr) {}
+    llvm::Value *Accept(Visitor *v) override {
+        return v->VisitCastExpr(this);
+    }
+
+    static bool classof(const AstNode * node) {
+        return node->GetKind() == ND_CastExpr;
     }
 };
 

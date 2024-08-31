@@ -352,6 +352,16 @@ llvm::Value * PrintVisitor::VisitSizeOfExpr(SizeOfExpr *expr) {
 
     return nullptr;
 }
+
+llvm::Value * PrintVisitor::VisitCastExpr(CastExpr *expr) {
+    *out << "(";
+    expr->targetType->Accept(this);
+    *out << ")";
+    expr->node->Accept(this);
+
+    return nullptr;
+}
+
 llvm::Value * PrintVisitor::VisitPostIncExpr(PostIncExpr *expr) {
     expr->left->Accept(this);
     *out << "++";
@@ -410,10 +420,34 @@ llvm::Value * PrintVisitor::VisitThreeExpr(ThreeExpr *expr) {
 }
 
 llvm::Type * PrintVisitor::VisitPrimaryType(CPrimaryType *ty) {
-    if (ty->GetKind() == CType::TY_Int) {
-        *out << "int ";
-    }else if (ty->GetKind() == CType::TY_Void) {
+    if (ty->GetKind() == CType::TY_Void) {
         *out << "void ";
+    }else if (ty->GetKind() == CType::TY_Char) {
+        *out << "char ";
+    }else if (ty->GetKind() == CType::TY_UChar) {
+        *out << "unsigned char ";
+    }else if (ty->GetKind() == CType::TY_Short) {
+        *out << "short ";
+    }else if (ty->GetKind() == CType::TY_UShort) {
+        *out << "unsigned short ";
+    }else if (ty->GetKind() == CType::TY_Int) {
+        *out << "int ";
+    }else if (ty->GetKind() == CType::TY_UInt) {
+        *out << "unsigned int ";
+    }else if (ty->GetKind() == CType::TY_Long) {
+        *out << "long ";
+    }else if (ty->GetKind() == CType::TY_ULong) {
+        *out << "unsigned long ";
+    }else if (ty->GetKind() == CType::TY_LLong) {
+        *out << "long long ";
+    }else if (ty->GetKind() == CType::TY_ULLong) {
+        *out << "unsigned long long ";
+    }else if (ty->GetKind() == CType::TY_Float) {
+        *out << "float ";
+    }else if (ty->GetKind() == CType::TY_Double) {
+        *out << "double ";
+    }else if (ty->GetKind() == CType::TY_LDouble) {
+        *out << "long double ";
     }
 
     return nullptr;

@@ -883,7 +883,7 @@ std::shared_ptr<AstNode> Parser::ParseAddExpr() {
 
 /// 左结合
 std::shared_ptr<AstNode> Parser::ParseMultiExpr() {
-    auto left = ParseUnaryExpr();
+    auto left = ParseCastExpr();
     while (tok.tokenType == TokenType::star || 
             tok.tokenType == TokenType::slash || 
             tok.tokenType == TokenType::percent) {
@@ -897,9 +897,37 @@ std::shared_ptr<AstNode> Parser::ParseMultiExpr() {
             op = BinaryOp::mod;
         }
         Advance();
-        left = sema.SemaBinaryExprNode(left, ParseUnaryExpr(), op);
+        left = sema.SemaBinaryExprNode(left, ParseCastExpr(), op);
     }
     return left;
+}
+
+std::shared_ptr<AstNode> Parser::ParseCastExpr() {
+    if (tok.tokenType != TokenType::l_parent) {
+        return ParseUnaryExpr();
+    }
+    bool isTypeName = false;
+    {
+        lexer.SaveState();
+        Token tmp;
+        lexer.NextToken(tmp);
+        if (IsTypeName(tmp)) {
+            isTypeName = true;
+        }
+        lexer.RestoreState();
+    }
+
+    if (isTypeName) {
+        /// case node;
+        Token idenTok = tok;
+        Consume(TokenType::l_parent);
+        auto type = ParseType();
+        Consume(TokenType::r_parent);
+        auto node = ParseCastExpr();
+        return sema.SemaCastExprNode(type, node, idenTok);
+    }else {
+        return ParseUnaryExpr();
+    }
 }
 
 std::shared_ptr<AstNode> Parser::ParseUnaryExpr() {

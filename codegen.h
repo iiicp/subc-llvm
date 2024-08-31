@@ -36,6 +36,7 @@ private:
     llvm::Value * VisitNumberExpr(NumberExpr *factorExpr) override;
     llvm::Value * VisitStringExpr(StringExpr *expr) override;
     llvm::Value * VisitUnaryExpr(UnaryExpr *expr) override;
+    llvm::Value * VisitCastExpr(CastExpr *expr) override;
     llvm::Value * VisitSizeOfExpr(SizeOfExpr *expr) override;
     llvm::Value * VisitPostIncExpr(PostIncExpr *expr) override;
     llvm::Value * VisitPostDecExpr(PostDecExpr *expr) override;

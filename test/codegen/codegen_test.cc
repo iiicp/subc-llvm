@@ -1148,3 +1148,69 @@ TEST(CodeGenTest, c1) {
     )",3);
     ASSERT_EQ(res, true);
 }
+
+TEST(CodeGenTest, cast_1) {
+    bool res = TestProgramUseJit(R"(
+        int printf(const char *fmg, ...);
+        
+        int main()
+        {
+        int  i = 17;
+        char c = 'c'; /* ascii 值是 99 */
+        int sum;
+        
+        sum = i + c;
+        printf("Value of sum : %d\n", sum);
+        return sum;
+        }
+    )", 116);
+    ASSERT_EQ(res, true);
+}
+
+TEST(CodeGenTest, cast_2) {
+    bool res = TestProgramUseJit(R"(
+        int printf(const char *fmg, ...);
+
+        int main()
+        {
+        int sum = 17, count = 5;
+        double mean;
+        
+        mean = (double) sum / count;
+        printf("Value of mean : %f\n", mean );
+        return mean;
+        }
+    )", 3);
+    ASSERT_EQ(res, true);
+}
+
+TEST(CodeGenTest, typedef_array) {
+    bool res = TestProgramUseJit(R"(
+        int printf(const char *fmg, ...);
+
+        typedef int array_t[10]; 
+        array_t array;
+        int main (void)
+        {
+            array[9] = 100;
+            printf ("array[9] = %d\n", array[9]);
+            return array[9];
+        }
+    )", 100);
+    ASSERT_EQ(res, true);
+}
+
+TEST(CodeGenTest, typedef_point) {
+    bool res = TestProgramCheckModule(R"(
+        int printf(const char *fmg, ...);
+        typedef char * PCHAR;
+        int main (void)
+        {
+            //char * str = "学嵌入式，到宅学部落";
+            PCHAR str = "学嵌入式，到宅学部落";
+            printf ("str: %s\n", str);
+            return 0;
+        }
+    )");
+    ASSERT_EQ(res, true);
+}

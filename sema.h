@@ -22,6 +22,7 @@ public:
     std::shared_ptr<AstNode> SemaStringExprNode(Token tok, std::string val, std::shared_ptr<CType> ty);
     std::shared_ptr<AstNode> SemaBinaryExprNode( std::shared_ptr<AstNode> left,std::shared_ptr<AstNode> right, BinaryOp op);
 
+    std::shared_ptr<AstNode> SemaCastExprNode( std::shared_ptr<CType> targetType, std::shared_ptr<AstNode> node, Token tok);
     std::shared_ptr<AstNode> SemaUnaryExprNode( std::shared_ptr<AstNode> unary, UnaryOp op, Token tok);
     std::shared_ptr<AstNode> SemaThreeExprNode( std::shared_ptr<AstNode> cond,std::shared_ptr<AstNode> then, std::shared_ptr<AstNode> els, Token tok);
     std::shared_ptr<AstNode> SemaSizeofExprNode( std::shared_ptr<AstNode> unary,std::shared_ptr<CType> ty);

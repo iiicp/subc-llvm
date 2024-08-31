@@ -109,6 +109,15 @@ std::shared_ptr<AstNode> Sema::SemaUnaryExprNode( std::shared_ptr<AstNode> unary
     return node;
 }
 
+std::shared_ptr<AstNode> Sema::SemaCastExprNode( std::shared_ptr<CType> targetType, std::shared_ptr<AstNode> node, Token tok) {
+    auto ret = std::make_shared<CastExpr>();
+    ret->ty = targetType;
+    ret->targetType = targetType;
+    ret->node = node;
+    ret->tok = tok;
+    return ret;
+}
+
 std::shared_ptr<AstNode> Sema::SemaThreeExprNode( std::shared_ptr<AstNode> cond,std::shared_ptr<AstNode> then, std::shared_ptr<AstNode> els, Token tok) {
     auto node = std::make_shared<ThreeExpr>();
     node->cond = cond;
