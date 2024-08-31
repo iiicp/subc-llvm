@@ -20,7 +20,7 @@ public:
     std::shared_ptr<AstNode> SemaNumberExprNode(Token tok, int val, std::shared_ptr<CType> ty);
     std::shared_ptr<AstNode> SemaNumberExprNode(Token tok, std::shared_ptr<CType> ty);
     std::shared_ptr<AstNode> SemaStringExprNode(Token tok, std::string val, std::shared_ptr<CType> ty);
-    std::shared_ptr<AstNode> SemaBinaryExprNode( std::shared_ptr<AstNode> left,std::shared_ptr<AstNode> right, BinaryOp op);
+    std::shared_ptr<AstNode> SemaBinaryExprNode( std::shared_ptr<AstNode> left,std::shared_ptr<AstNode> right, BinaryOp op, Token tok);
 
     std::shared_ptr<AstNode> SemaCastExprNode( std::shared_ptr<CType> targetType, std::shared_ptr<AstNode> node, Token tok);
     std::shared_ptr<AstNode> SemaUnaryExprNode( std::shared_ptr<AstNode> unary, UnaryOp op, Token tok);

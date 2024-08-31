@@ -38,19 +38,113 @@ std::shared_ptr<AstNode> Sema::SemaVariableAccessNode(Token tok)  {
     return expr;
 }
 
-std::shared_ptr<AstNode> Sema::SemaBinaryExprNode( std::shared_ptr<AstNode> left,std::shared_ptr<AstNode> right, BinaryOp op) {
+std::shared_ptr<AstNode> Sema::SemaBinaryExprNode( std::shared_ptr<AstNode> left,std::shared_ptr<AstNode> right, BinaryOp op, Token tok) {
     auto binaryExpr = std::make_shared<BinaryExpr>();
+    binaryExpr->tok = tok;
     binaryExpr->op = op;
     binaryExpr->left = left;
     binaryExpr->right = right;
     binaryExpr->ty = left->ty;
 
-    if (op == BinaryOp::add || op == BinaryOp::sub || op == BinaryOp::add_assign || op == BinaryOp::sub_assign) {
-        /// int a = 3; int *p = &a; 3+p;
-        if ((left->ty->GetKind() == CType::TY_Int) && (right->ty->GetKind() == CType::TY_Point)) {
+    CType::Kind leftKind = left->ty->GetKind();
+    CType::Kind rightKind = right->ty->GetKind();
+
+    switch (op)
+    {
+    case BinaryOp::add: {
+        if (!left->ty->IsArithType() && leftKind != CType::TY_Point) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (!right->ty->IsArithType() && rightKind != CType::TY_Point) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (leftKind == CType::TY_Point && rightKind == CType::TY_Point) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (leftKind == CType::TY_Point && !right->ty->IsIntegerType()) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (rightKind == CType::TY_Point && !left->ty->IsIntegerType()) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (rightKind == CType::TY_Point) {
             binaryExpr->ty = right->ty;
+            auto t = binaryExpr->left;
+            binaryExpr->left = binaryExpr->right;
+            binaryExpr->right = t;
         }
+        break;
     }
+    case BinaryOp::sub: {
+        if (!left->ty->IsArithType() && leftKind != CType::TY_Point) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (!right->ty->IsArithType() && rightKind != CType::TY_Point) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (leftKind == CType::TY_Point && leftKind == CType::TY_Point) {
+            binaryExpr->ty = CType::LongType;
+        }else if (leftKind == CType::TY_Point && !right->ty->IsIntegerType()) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (rightKind == CType::TY_Point && !left->ty->IsIntegerType()) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (rightKind == CType::TY_Point) {
+            binaryExpr->ty = right->ty;
+            auto t = binaryExpr->left;
+            binaryExpr->left = binaryExpr->right;
+            binaryExpr->right = t;
+        }
+        break;
+    }
+    case BinaryOp::add_assign:
+    case BinaryOp::sub_assign: {
+        if (!left->ty->IsArithType() && leftKind != CType::TY_Point) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (!right->ty->IsArithType()) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (leftKind == CType::TY_Point && !right->ty->IsIntegerType()) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }
+        break;
+    }
+    case BinaryOp::mul: 
+    case BinaryOp::mul_assign:
+    case BinaryOp::div: 
+    case BinaryOp::div_assign: {
+        if (!left->ty->IsArithType() && !right->ty->IsArithType()) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }
+        break;
+    }
+    case BinaryOp::mod: 
+    case BinaryOp::mod_assign: 
+    case BinaryOp::bitwise_or: 
+    case BinaryOp::bitwise_or_assign:
+    case BinaryOp::bitwise_and: 
+    case BinaryOp::bitwise_and_assign:
+    case BinaryOp::bitwise_xor:
+    case BinaryOp::bitwise_xor_assign: 
+    case BinaryOp::left_shift:
+    case BinaryOp::left_shift_assign:
+    case BinaryOp::right_shift:
+    case BinaryOp::right_shift_assign:{
+        if (!left->ty->IsIntegerType() && !right->ty->IsIntegerType()) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }
+        break;
+    }
+    case BinaryOp::equal: 
+    case BinaryOp::not_equal:
+    case BinaryOp::less:
+    case BinaryOp::less_equal:
+    case BinaryOp::greater:
+    case BinaryOp::greater_equal:
+    case BinaryOp::logical_or:
+    case BinaryOp::logical_and:{
+        if (!left->ty->IsArithType() && leftKind != CType::TY_Point) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }else if (!right->ty->IsArithType() && rightKind != CType::TY_Point) {
+            diagEngine.Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_binary_expr_type);
+        }
+        break;
+    }         
+    default:
+        break;
+    }
+
     return binaryExpr;
 }
 

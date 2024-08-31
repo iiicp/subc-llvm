@@ -823,9 +823,10 @@ std::shared_ptr<AstNode> Parser::ParseDefaultStmt() {
 std::shared_ptr<AstNode> Parser::ParseExpr() {
     auto left = ParseAssignExpr();
     while (tok.tokenType == TokenType::comma) {
+        Token idenTok = tok;
         Consume(TokenType::comma);
         auto right = ParseAssignExpr();
-        left = sema.SemaBinaryExprNode(left, right, BinaryOp::comma);
+        left = sema.SemaBinaryExprNode(left, right, BinaryOp::comma, idenTok);
     }
     return left;
 }
@@ -833,6 +834,7 @@ std::shared_ptr<AstNode> Parser::ParseExpr() {
 std::shared_ptr<AstNode> Parser::ParseEqualExpr() {
     auto left = ParseRelationalExpr();
     while (tok.tokenType == TokenType::equal_equal || tok.tokenType == TokenType::not_equal) {
+        Token idenTok = tok;
         BinaryOp op;
         if (tok.tokenType == TokenType::equal_equal) {
             op = BinaryOp::equal;
@@ -840,7 +842,7 @@ std::shared_ptr<AstNode> Parser::ParseEqualExpr() {
             op = BinaryOp::not_equal;
         }
         Advance();
-        left = sema.SemaBinaryExprNode(left, ParseRelationalExpr(), op);
+        left = sema.SemaBinaryExprNode(left, ParseRelationalExpr(), op, idenTok);
     }
     return left;
 }
@@ -849,6 +851,7 @@ std::shared_ptr<AstNode> Parser::ParseRelationalExpr() {
     auto left = ParseShiftExpr();
     while (tok.tokenType == TokenType::less || tok.tokenType == TokenType::less_equal || 
         tok.tokenType == TokenType::greater || tok.tokenType == TokenType::greater_equal) {
+        Token idenTok = tok;
         BinaryOp op;
         if (tok.tokenType == TokenType::less) {
             op = BinaryOp::less;
@@ -860,7 +863,7 @@ std::shared_ptr<AstNode> Parser::ParseRelationalExpr() {
             op = BinaryOp::greater_equal;
         }
         Advance();
-        left = sema.SemaBinaryExprNode(left, ParseShiftExpr(), op);
+        left = sema.SemaBinaryExprNode(left, ParseShiftExpr(), op, idenTok);
     }
     return left;
 }
@@ -869,6 +872,7 @@ std::shared_ptr<AstNode> Parser::ParseAddExpr() {
      /// add-expr : mult-expr (("+" | "-") mult-expr)* 
     auto left = ParseMultiExpr();
     while (tok.tokenType == TokenType::plus || tok.tokenType == TokenType::minus) {
+        Token idenTok = tok;
         BinaryOp op;
         if (tok.tokenType == TokenType::plus) {
             op = BinaryOp::add;
@@ -876,7 +880,7 @@ std::shared_ptr<AstNode> Parser::ParseAddExpr() {
             op = BinaryOp::sub;
         }
         Advance();
-        left = sema.SemaBinaryExprNode(left, ParseMultiExpr(), op);
+        left = sema.SemaBinaryExprNode(left, ParseMultiExpr(), op, idenTok);
     }
     return left;
 }
@@ -887,6 +891,7 @@ std::shared_ptr<AstNode> Parser::ParseMultiExpr() {
     while (tok.tokenType == TokenType::star || 
             tok.tokenType == TokenType::slash || 
             tok.tokenType == TokenType::percent) {
+        Token idenTok = tok;
         BinaryOp op;
         if (tok.tokenType == TokenType::star) {
             op = BinaryOp::mul;
@@ -897,7 +902,7 @@ std::shared_ptr<AstNode> Parser::ParseMultiExpr() {
             op = BinaryOp::mod;
         }
         Advance();
-        left = sema.SemaBinaryExprNode(left, ParseCastExpr(), op);
+        left = sema.SemaBinaryExprNode(left, ParseCastExpr(), op, idenTok);
     }
     return left;
 }
@@ -1095,6 +1100,7 @@ std::shared_ptr<AstNode> Parser::ParseAssignExpr() {
         return left;
     }
 
+    Token idenTok = tok;
     BinaryOp op;
     switch (tok.tokenType)
     {
@@ -1135,7 +1141,7 @@ std::shared_ptr<AstNode> Parser::ParseAssignExpr() {
         break;
     }
     Advance();
-    return sema.SemaBinaryExprNode(left, ParseAssignExpr(), op);
+    return sema.SemaBinaryExprNode(left, ParseAssignExpr(), op, idenTok);
 }
 
 
@@ -1155,9 +1161,10 @@ std::shared_ptr<AstNode> Parser::ParseConditionalExpr() {
 std::shared_ptr<AstNode> Parser::ParseLogOrExpr() {
     auto left = ParseLogAndExpr();
     while (tok.tokenType == TokenType::pipepipe) {
+        Token idenTok = tok;
         BinaryOp op = BinaryOp::logical_or;
         Advance();
-        left = sema.SemaBinaryExprNode(left, ParseLogAndExpr(), op);
+        left = sema.SemaBinaryExprNode(left, ParseLogAndExpr(), op, idenTok);
     }
     return left;
 }
@@ -1165,42 +1172,47 @@ std::shared_ptr<AstNode> Parser::ParseLogOrExpr() {
 std::shared_ptr<AstNode> Parser::ParseLogAndExpr() {
     auto left = ParseBitOrExpr();
     while (tok.tokenType == TokenType::ampamp) {
+        Token idenTok = tok;
         BinaryOp op = BinaryOp::logical_and;
         Advance();
-        left = sema.SemaBinaryExprNode(left, ParseBitOrExpr(), op);
+        left = sema.SemaBinaryExprNode(left, ParseBitOrExpr(), op, idenTok);
     }
     return left;
 }
 std::shared_ptr<AstNode> Parser::ParseBitOrExpr() {
     auto left = ParseBitXorExpr();
     while (tok.tokenType == TokenType::pipe) {
+        Token idenTok = tok;
         BinaryOp op = BinaryOp::bitwise_or;
         Advance();
-        left = sema.SemaBinaryExprNode(left, ParseBitXorExpr(), op);
+        left = sema.SemaBinaryExprNode(left, ParseBitXorExpr(), op, idenTok);
     }
     return left;
 }
 std::shared_ptr<AstNode> Parser::ParseBitXorExpr() {
     auto left = ParseBitAndExpr();
     while (tok.tokenType == TokenType::caret) {
+        Token idenTok = tok;
         BinaryOp op = BinaryOp::bitwise_xor;
         Advance();
-        left = sema.SemaBinaryExprNode(left, ParseBitAndExpr(), op);
+        left = sema.SemaBinaryExprNode(left, ParseBitAndExpr(), op, idenTok);
     }
     return left;
 }
 std::shared_ptr<AstNode> Parser::ParseBitAndExpr() {
     auto left = ParseEqualExpr();
     while (tok.tokenType == TokenType::amp) {
+        Token idenTok = tok;
         BinaryOp op = BinaryOp::bitwise_and;
         Advance();
-        left = sema.SemaBinaryExprNode(left, ParseEqualExpr(), op);
+        left = sema.SemaBinaryExprNode(left, ParseEqualExpr(), op, idenTok);
     }
     return left;
 }
 std::shared_ptr<AstNode> Parser::ParseShiftExpr() {
     auto left = ParseAddExpr();
     while (tok.tokenType == TokenType::less_less || tok.tokenType == TokenType::greater_greater) {
+        Token idenTok = tok;
         BinaryOp op;
         if (tok.tokenType == TokenType::less_less) {
             op = BinaryOp::left_shift;
@@ -1208,7 +1220,7 @@ std::shared_ptr<AstNode> Parser::ParseShiftExpr() {
             op = BinaryOp::right_shift;
         }
         Advance();
-        left = sema.SemaBinaryExprNode(left, ParseAddExpr(), op);
+        left = sema.SemaBinaryExprNode(left, ParseAddExpr(), op, idenTok);
     }
     return left;
 }

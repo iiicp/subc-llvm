@@ -27,5 +27,6 @@ DIAG(err_expected_lvalue, Error, "expected lvalue")
 DIAG(err_expected_ex, Error, "expected '{0}'")
 DIAG(err_miss, Error, "miss '{0}'")
 DIAG(err_large_length, Error, "large length")
+DIAG(err_binary_expr_type, Error, "The types of the left and right sides of the binary expression do not support the operation")
 
 #undef DIAG
