@@ -53,9 +53,10 @@ private:
     llvm::Type * VisitRecordType(CRecordType *ty) override;
     llvm::Type * VisitFuncType(CFuncType *ty) override;
 private:
-    void AssignCastValue(llvm::Value *&val, llvm::Type *destTy);
-    void BinaryArithCastValue(llvm::Value *&left, llvm::Value *&right);
-    llvm::Value *ConvertToBoolVal(llvm::Value *val);
+    void Cast(llvm::Value *&val);
+    void AssignCast(llvm::Value *&val, llvm::Type *destTy);
+    void BinaryArithCast(llvm::Value *&left, llvm::Value *&right);
+    llvm::Value *BoolCast(llvm::Value *val);
 private:
     void AddLocalVarToMap(llvm::Value *addr, llvm::Type *ty, llvm::StringRef name);
     void AddGlobalVarToMap(llvm::Value *addr, llvm::Type *ty, llvm::StringRef name);
