@@ -96,8 +96,8 @@ public:
         ND_PostMemberArrowExpr,
         ND_PostFuncCall,
         ND_NumberExpr,
-        ND_StringExpr,
-        ND_VariableAccessExpr
+        ND_VariableAccessExpr,
+        ND_StringExpr
     };
 private:
     const Kind kind;

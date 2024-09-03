@@ -29,4 +29,8 @@ DIAG(err_miss, Error, "miss '{0}'")
 DIAG(err_large_length, Error, "large length")
 DIAG(err_binary_expr_type, Error, "The types of the left and right sides of the binary expression do not support the operation")
 
+DIAG(err_constant_expr, Error, "expect constant expr")
+DIAG(err_int_constant_expr, Error, "expect int constant expr")
+DIAG(err_arr_size, Error, "array size must be greater than 0")
+
 #undef DIAG

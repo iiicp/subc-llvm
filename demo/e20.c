@@ -6,6 +6,7 @@ typedef struct student
     int  age;
     float score;
 }student_t, *student_ptr;
+
 int main (void)
 {
     student_t   stu = {"wit", 20, 99};

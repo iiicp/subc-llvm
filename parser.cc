@@ -1,4 +1,5 @@
 #include "parser.h"
+#include "eval_constant.h"
 
 std::shared_ptr<Program> Parser::ParseProgram() {
 
@@ -308,12 +309,16 @@ std::shared_ptr<CType> Parser::DirectDeclaratorArraySuffix(std::shared_ptr<CType
     Consume(TokenType::l_bracket);
     int count = -1;
     if (tok.tokenType != TokenType::r_bracket) {
-        Expect(TokenType::number);
-        if (!tok.ty->IsIntegerType()) {
+        EvalConstant eval(GetDiagEngine());
+        auto expr = ParseExpr();
+        EvalConstant::Constant constant = eval.Eval(expr.get());
+        if (!std::holds_alternative<int64_t>(constant)) {
             GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_expected_ex, "integer type");
         }
-        count = tok.value.v;
-        Consume(TokenType::number);
+        count = std::get<int64_t>(constant);
+        if (count <= 0) {
+             GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tok.ptr), diag::err_arr_size);
+        }
     }
     Consume(TokenType::r_bracket);
     return std::make_shared<CArrayType>(DirectDeclaratorArraySuffix(baseType, isGlobal), count);
@@ -752,7 +757,10 @@ std::shared_ptr<AstNode> Parser::ParseSwitchStmt() {
 
     Consume(TokenType::kw_switch);
     Consume(TokenType::l_parent);
+    Token tmp = tok;
     node->expr = ParseExpr();
+    if (!node->expr->ty->IsIntegerType())
+        GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tmp.ptr), diag::err_expected_ex, "integer type");
     Consume(TokenType::r_parent);
     node->stmt = ParseStmt();
 
@@ -767,7 +775,13 @@ std::shared_ptr<AstNode> Parser::ParseCaseStmt() {
     }
     Consume(TokenType::kw_case);
     auto node = std::make_shared<CaseStmt>();
+    Token tmp = tok;
     node->expr = ParseExpr();
+    EvalConstant eval = EvalConstant(GetDiagEngine());
+    EvalConstant::Constant c = eval.Eval(node->expr.get());
+    if (!std::holds_alternative<int64_t>(c)) {
+        GetDiagEngine().Report(llvm::SMLoc::getFromPointer(tmp.ptr), diag::err_int_constant_expr);
+    }
     Consume(TokenType::colon);
     
     /// 将两个case语句之间，使用 blockStmt 进行包裹

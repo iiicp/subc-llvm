@@ -21,6 +21,6 @@ endif()
 
 set(LLVM_LINK_COMPONENTS Support Core ExecutionEngine MC MCJIT OrcJit native)
 
-add_llvm_executable(${PROJECT_NAME} main.cc lexer.cc parser.cc print_visitor.cc  type.cc scope.cc sema.cc diag_engine.cc codegen.cc)
+add_llvm_executable(${PROJECT_NAME} main.cc lexer.cc parser.cc print_visitor.cc  type.cc scope.cc sema.cc diag_engine.cc codegen.cc eval_constant.cc)
 
 add_subdirectory(test)

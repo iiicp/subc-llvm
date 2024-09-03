@@ -11,6 +11,7 @@ add_executable(
   ../../sema.cc 
   ../../scope.cc
   ../../codegen.cc
+  ../../eval_constant.cc
 )
 
 llvm_map_components_to_libnames(llvm_all Support Core ExecutionEngine MC MCJIT OrcJit native)
