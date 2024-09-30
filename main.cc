@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
         std::unique_ptr<llvm::ExecutionEngine> ee(
             builder.setErrorStr(&error)
                     .setEngineKind(llvm::EngineKind::JIT)
-                    .setOptLevel(llvm::CodeGenOpt::None)
+                    .setOptLevel(llvm::CodeGenOptLevel::None)
                     .setSymbolResolver(std::move(ptr))
                     .create());
         ref->finalizeMemory(&error);

@@ -4,18 +4,21 @@
 [LLVM前端实践之从0到1实现一个C编译器](https://www.bilibili.com/cheese/play/ss31453?csource=private_space_class_null&spm_id_from=333.999.0.0)
 
 ## 一：开发环境 
-Ubuntu20.04 + llvm17.0
+Ubuntu20.04 + llvm20
 
-编译方式
+构建步骤
 ```
-cmake . -Wno-dev
-make
+git clone git@github.com:iiicp/subc-llvm.git
+cd subc-llvm 
+mkdir build && cd build 
+cmake .. -GNinja -DLLVM_DIR=`llvm install home`/lib/cmake/llvm 
+ninja 
 ```
 
 目前在下列环境下编译通过：
-* Ubuntu 20.04 + llvm 17
-* Ubuntu 22.04 + llvm 17
-* MacOS 12 + llvm 18
+* Ubuntu 20.04 + llvm 20
+* Ubuntu 22.04 + llvm 20
+* MacOS 14 + llvm 20
 
 ## 二：实现的完整文法 
 ``` 
