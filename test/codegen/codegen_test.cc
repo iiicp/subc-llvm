@@ -40,10 +40,10 @@ bool TestProgramUseJit(llvm::StringRef content, int expectValue) {
         auto ref = ptr.get();
         std::unique_ptr<llvm::ExecutionEngine> ee(
             builder.setErrorStr(&error)
-                    .setEngineKind(llvm::EngineKind::JIT)
-                    .setOptLevel(llvm::CodeGenOpt::None)
-                    .setSymbolResolver(std::move(ptr))
-                    .create());
+                .setEngineKind(llvm::EngineKind::JIT)
+                .setOptLevel(llvm::CodeGenOptLevel::None)
+                .setSymbolResolver(std::move(ptr))
+                .create());
         ref->finalizeMemory(&error);
 
         void *addr = (void *)ee->getFunctionAddress("main");
