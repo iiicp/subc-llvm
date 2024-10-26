@@ -314,7 +314,7 @@ void Lexer::NextToken(Token &tok) {
     else if (StartWith("0x") || StartWith("0X") || 
             StartWith("0b") || StartWith("0B")  ||
             IsDigit(*BufPtr) || (*BufPtr == '.' && IsDigit(BufPtr[1]))) {
-        char *p = (char *)BufPtr;
+        const char *p = BufPtr;
         for (;;) {
             if (p[0] && p[1] && strchr("eEpP", p[0]) && strchr("+-", p[1]))
                 p += 2;

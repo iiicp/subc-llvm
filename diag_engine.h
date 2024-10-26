@@ -7,7 +7,7 @@ enum {
     #define DIAG(ID, KIND, MSG) ID,
     #include "diag.inc"
 };
-};
+}
 
 class DiagEngine {
 private:

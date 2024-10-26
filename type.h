@@ -53,11 +53,11 @@ protected:
 public:
     CType(Kind kind, int size, int align, bool sign = true):kind(kind), size(size), align(align), sign(sign) {}
     virtual ~CType() {}
-    const Kind GetKind() const {return kind;}
-    const int GetSize() const {
+    Kind GetKind() const {return kind;}
+    int GetSize() const {
         return size;
     }
-    const int GetAlign() const {
+    int GetAlign() const {
         return align;
     }
 
@@ -134,7 +134,7 @@ public:
         return elementType;
     }
 
-    const int GetElementCount() {
+    int GetElementCount() {
         return elementCount;
     }
 
@@ -179,7 +179,7 @@ public:
 
     void SetMembers(const std::vector<Member>& members);
 
-    const TagKind GetTagKind() {
+    TagKind GetTagKind() {
         return tagKind;
     }
 

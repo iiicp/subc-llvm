@@ -503,8 +503,9 @@ bool Parser::ParseInitializer(std::vector<std::shared_ptr<VariableDecl::InitValu
             TagKind tagKind = recordType->GetTagKind();
             const auto &members = recordType->GetMembers();
 
-            if (tagKind == TagKind::kStruct) {    
-                for (int i = 0; i < members.size(); ++i) {
+            if (tagKind == TagKind::kStruct) {
+                int size = (int)members.size();
+                for (int i = 0; i < size; ++i) {
                     if (i > 0 && (tok.tokenType == TokenType::comma)) {
                         Consume(TokenType::comma);
                     }
@@ -873,7 +874,7 @@ std::shared_ptr<AstNode> Parser::ParseRelationalExpr() {
             op = BinaryOp::less_equal;
         }else if (tok.tokenType == TokenType::greater){
             op = BinaryOp::greater;
-        }else if (tok.tokenType == TokenType::greater_equal){
+        }else {
             op = BinaryOp::greater_equal;
         }
         Advance();

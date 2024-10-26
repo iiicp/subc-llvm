@@ -658,7 +658,7 @@ llvm::Value * CodeGen::VisitVariableDecl(VariableDecl *decl) {
                     continue;
                 }
                 bool find = true;    
-                for (int i = 0; i < offset.size(); ++i) {
+                for (int i = 0; i < (int)offset.size(); ++i) {
                     if (n->offsetList[i] != offset[i]) {
                         find = false;
                         break;
@@ -1009,7 +1009,6 @@ llvm::Value * CodeGen::VisitPostMemberDotExpr(PostMemberDotExpr *expr) {
 /// ptr* -> ptr
 llvm::Value * CodeGen::VisitPostMemberArrowExpr(PostMemberArrowExpr *expr) {
     llvm::Value *leftValue = expr->left->Accept(this);
-    llvm::Type *leftType = expr->left->ty->Accept(this);
     CPointType *cLeftPointerType = llvm::dyn_cast<CPointType>(expr->left->ty.get());
     
     CRecordType *cLeftType = llvm::dyn_cast<CRecordType>(cLeftPointerType->GetBaseType().get());
@@ -1033,7 +1032,6 @@ llvm::Value * CodeGen::VisitPostFuncCall(PostFuncCall *expr) {
     /// 求解出函数的地址
     llvm::Value *funcArr = expr->left->Accept(this);
     /// 求解出llvm的函数的类型，在语义模块，根据ptr to func，已调整成func类型
-    llvm::Type *ty = expr->left->ty->Accept(this);
     llvm::FunctionType *funcTy = llvm::dyn_cast<llvm::FunctionType>(expr->left->ty->Accept(this));
     /// 获取源语言的函数的类型
     CFuncType *cFuncTy = llvm::dyn_cast<CFuncType>(expr->left->ty.get());
@@ -1046,7 +1044,7 @@ llvm::Value * CodeGen::VisitPostFuncCall(PostFuncCall *expr) {
     /// 遍历实参
     for (const auto &arg : expr->args) {
         llvm::Value *val = arg->Accept(this);
-        if (i < param.size()) {
+        if (i < (int)param.size()) {
             AssignCast(val, param[i].type->Accept(this));
         }else {
             Cast(val);
