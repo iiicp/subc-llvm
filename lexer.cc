@@ -728,7 +728,7 @@ const char * Lexer::ConvertNumber(Token &tok, const char *start, const char *end
 
 std::pair<bool, const char *> Lexer::ConvertIntNumber(Token &tok, const char *start, const char *end) {
   // Read a binary, octal, decimal or hexadecimal number.
-  char *p = (char *)start;
+  char *p = const_cast<char*>(start);
   int base = 10;
   if (!strncasecmp(p, "0x", 2) && isxdigit(p[2])) {
     p += 2;
