@@ -136,3 +136,33 @@ TEST(LexerTest, unary) {
         return expectedVec;
     });
 }
+
+TEST(LexerTest, expr_01) {
+    bool res = TestLexerWithContent("1+3; 2+(4*2)/2+4;\n5-3*2;", []()->std::vector<Token> {
+        std::vector<Token> expectedVec;
+        expectedVec.push_back(Token{TokenType::number, 1, 1});
+        expectedVec.push_back(Token{TokenType::plus, 1, 2});
+        expectedVec.push_back(Token{TokenType::number, 1, 3});
+        expectedVec.push_back(Token{TokenType::semi, 1, 4});
+        expectedVec.push_back(Token{TokenType::number, 1, 6});
+        expectedVec.push_back(Token{TokenType::plus, 1, 7});
+        expectedVec.push_back(Token{TokenType::l_parent, 1, 8});
+        expectedVec.push_back(Token{TokenType::number, 1, 9});
+
+        expectedVec.push_back(Token{TokenType::star, 1, 10});
+        expectedVec.push_back(Token{TokenType::number, 1, 11});
+        expectedVec.push_back(Token{TokenType::r_parent, 1, 12});
+        expectedVec.push_back(Token{TokenType::slash, 1, 13});
+        expectedVec.push_back(Token{TokenType::number, 1, 14});
+        expectedVec.push_back(Token{TokenType::plus, 1, 15});
+        expectedVec.push_back(Token{TokenType::number, 1, 16});
+        expectedVec.push_back(Token{TokenType::semi, 1, 17});
+        expectedVec.push_back(Token{TokenType::number, 2, 1});
+        expectedVec.push_back(Token{TokenType::minus, 2, 2});
+        expectedVec.push_back(Token{TokenType::number, 2, 3});
+        expectedVec.push_back(Token{TokenType::star, 2, 4});
+        expectedVec.push_back(Token{TokenType::number, 2, 5});
+        expectedVec.push_back(Token{TokenType::semi, 2, 6});
+        return expectedVec;
+    });
+}

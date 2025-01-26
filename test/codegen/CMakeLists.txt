@@ -14,7 +14,7 @@ add_executable(
   ../../eval_constant.cc
 )
 
-llvm_map_components_to_libnames(llvm_all Support Core ExecutionEngine MC MCJIT OrcJit native)
+llvm_map_components_to_libnames(llvm_all Support Core ExecutionEngine MC MCJIT OrcJit native TargetParser CodeGen)
 
 #message(STATUS "iiicp: ${llvm_all}")
 

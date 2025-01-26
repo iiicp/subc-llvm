@@ -32,4 +32,4 @@ set(LLVM_LINK_COMPONENTS ${LLVM_TARGETS_TO_BUILD} Support Core ExecutionEngine C
 
 add_llvm_executable(subc main.cc lexer.cc parser.cc print_visitor.cc  type.cc scope.cc sema.cc diag_engine.cc codegen.cc eval_constant.cc)
 
-#add_subdirectory(test)
+add_subdirectory(test)

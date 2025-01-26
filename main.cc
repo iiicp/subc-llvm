@@ -67,8 +67,8 @@ int main(int argc, char *argv[]) {
 
   auto &M = CG.GetModule();
 
-  llvm::outs() << "1>>>  output ir\n";
-  M->print(llvm::outs(), nullptr);
+//   llvm::outs() << "1>>>  output ir\n";
+//   M->print(llvm::outs(), nullptr);
   assert(!llvm::verifyModule(*M));
 
 #ifdef JIT_TEST
@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
   // T.setArch(llvm::Triple::ArchType::aarch64);
   // T.setOS(llvm::Triple::OSType::Darwin);
   // T.setEnvironment(llvm::Triple::GNU);
-  llvm::outs() << "\nthe triple: " << T.normalize() << "\n\n";
+//   llvm::outs() << "\nthe triple: " << T.normalize() << "\n\n";
   /// 2. 查找一个target
   std::string Err;
   const llvm::Target *TG = llvm::TargetRegistry::lookupTarget(T.normalize(), Err);
