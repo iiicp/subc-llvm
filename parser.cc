@@ -264,6 +264,7 @@ std::shared_ptr<CType> Parser::ParseStructOrUnionSpec() {
             name = llvm::StringRef(tag.ptr, tag.len);
         }
         recordTy = std::make_shared<CRecordType>(name, std::vector<Member>(), tagKind);
+        sema.SemaTagDecl(tag, recordTy);
     }
 
     /*
@@ -290,7 +291,7 @@ std::shared_ptr<CType> Parser::ParseStructOrUnionSpec() {
         CRecordType *ty = llvm::dyn_cast<CRecordType>(recordTy.get());
         ty->SetMembers(members);
 
-        return sema.SemaTagDecl(tag, recordTy);
+        return recordTy;
     }else {
        return recordTy;  
     }
